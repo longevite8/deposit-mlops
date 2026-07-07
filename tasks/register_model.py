@@ -1,0 +1,188 @@
+from clearml import (
+    Model,
+    Task,
+)
+from clearml.backend_api.session.client import APIClient
+
+from config import (
+    PROJECT_TEMPLATE,
+    TEMPLATE_REGISTER_NAME,
+)
+
+
+task = Task.init(
+    project_name=PROJECT_TEMPLATE,
+    task_name=TEMPLATE_REGISTER_NAME,
+    task_type=Task.TaskTypes.application,
+)
+
+
+# =====================================================
+# Parameters
+# =====================================================
+
+params = task.connect(
+    {
+        "train_task_id": "",
+        "evaluate_task_id": "",
+    }
+)
+
+
+# =====================================================
+# Template creation mode
+# =====================================================
+
+if not params["train_task_id"] or not params["evaluate_task_id"]:
+    task.get_logger().report_text("Template creation mode.")
+
+    task.close()
+    raise SystemExit(0)
+
+
+# =====================================================
+# Load evaluation result
+# =====================================================
+
+evaluate_task = Task.get_task(task_id=params["evaluate_task_id"])
+
+evaluation_result = evaluate_task.artifacts["evaluation_result"].get()
+
+# =====================================================
+# Load model id
+# =====================================================
+
+train_task = Task.get_task(
+    task_id=params["train_task_id"],
+)
+
+model_id = train_task.artifacts["model_id"].get()
+
+registered_model = Model(model_id=model_id)
+
+metadata = registered_model.get_all_metadata()
+
+feature_dataset_id = metadata["feature_dataset_id"]["value"]
+
+# =====================================================
+# Load lineage information
+# =====================================================
+
+train_params = train_task.get_parameters()
+
+hpo_task_id = train_params.get("General/hpo_task_id")
+
+# =====================================================
+# Publish model
+# =====================================================
+
+published = evaluation_result["passed"]
+if published:
+    mape = evaluation_result["mape"]
+    r2 = evaluation_result["r2"]
+
+    registered_model.set_metadata(
+        "mape",
+        str(mape),
+    )
+
+    registered_model.set_metadata(
+        "r2",
+        str(r2),
+    )
+
+    registered_model.set_metadata(
+        "feature_dataset_id",
+        feature_dataset_id,
+    )
+
+    # =====================================================
+    # Model lineage
+    # =====================================================
+
+    registered_model.set_metadata(
+        "hpo_task_id",
+        str(hpo_task_id),
+    )
+
+    registered_model.set_metadata(
+        "train_task_id",
+        str(train_task.id),
+    )
+
+    registered_model.set_metadata(
+        "evaluate_task_id",
+        str(evaluate_task.id),
+    )
+
+    registered_model.set_metadata(
+        "register_task_id",
+        str(task.id),
+    )
+
+    client = APIClient()
+
+    new_tags = list(registered_model.tags or [])
+
+    if "candidate" not in new_tags:
+        new_tags.append("candidate")
+
+    client.models.edit(
+        model=registered_model.id,
+        tags=new_tags,
+    )
+
+    registered_model.publish()
+
+    register_summary = {
+        "published": True,
+        "model_id": registered_model.id,
+        "train_task_id": train_task.id,
+        "feature_dataset_id": feature_dataset_id,
+        "mape": mape,
+        "r2": r2,
+    }
+
+    task.get_logger().report_text(f"Published model: {model_id}")
+
+    print(
+        "Published:",
+        model_id,
+    )
+
+else:
+    register_summary = {
+        "published": False,
+        "model_id": None,
+        "train_task_id": None,
+        "feature_dataset_id": feature_dataset_id,
+        "mape": evaluation_result["mape"],
+        "r2": evaluation_result["r2"],
+    }
+
+    task.get_logger().report_text("Quality gate not passed. Keep current champion.")
+
+    print("Skip publish.")
+
+register_lineage = {
+    "register_task_id": task.id,
+    "train_task_id": train_task.id,
+    "evaluate_task_id": evaluate_task.id,
+    "hpo_task_id": hpo_task_id,
+    "model_id": model_id,
+    "feature_dataset_id": feature_dataset_id,
+}
+
+task.upload_artifact(
+    "register_summary",
+    register_summary,
+)
+
+task.upload_artifact(
+    "register_lineage",
+    register_lineage,
+)
+
+task.get_logger().report_text(f"Feature Dataset = {feature_dataset_id}")
+
+task.close()

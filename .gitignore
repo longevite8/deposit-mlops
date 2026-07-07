@@ -1,10 +1,10 @@
 # Python-generated files
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+*.py[cod]
+*$py.class
+uv.lock
+.clearml/
+*.log
 
 # Virtual environments
 .venv

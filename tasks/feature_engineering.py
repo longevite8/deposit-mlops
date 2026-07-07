@@ -17,6 +17,7 @@ from config import (
     PROJECT_DATASET,
 )
 
+from helpers import wait_for_artifact  # THÊM: Import từ helper
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -52,13 +53,38 @@ extract_task = Task.get_task(
     task_id=params["extract_task_id"],
 )
 
-df = extract_task.artifacts["raw_data"].get()
-
-raw_dataset_id = extract_task.artifacts["raw_dataset_id"].get()
-
-raw_dataset = Dataset.get(
-    dataset_id=raw_dataset_id,
+# SỬA: Dùng wait_for_artifact để chắc chắn data sẵn sàng
+df = wait_for_artifact(
+    extract_task,
+    "raw_data",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
 )
+
+raw_dataset_id = wait_for_artifact(
+    extract_task,
+    "raw_dataset_id",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+
+try:
+    # Thử lấy Dataset theo ID từ artifact
+    raw_dataset = Dataset.get(dataset_id=raw_dataset_id)
+except Exception:
+    task.get_logger().report_text(
+        f"Warning: ID {raw_dataset_id} not indexed as Dataset yet. Falling back to latest finalized by name."
+    )
+    # Fallback: Lấy version finalized mới nhất theo tên
+    raw_dataset = Dataset.get(
+        dataset_project=PROJECT_DATASET,
+        dataset_name="Deposit Raw Dataset",  # Đảm bảo tên này khớp với tên đặt trong extract_data.py
+    )
+
+if not raw_dataset:
+    raise ValueError(f"Could not find a valid Raw Dataset for ID: {raw_dataset_id}")
 
 # =====================================================
 # Feature Engineering
@@ -202,5 +228,8 @@ task.get_logger().report_text(
 )
 
 print("Feature engineering completed.")
+
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
 
 task.close()

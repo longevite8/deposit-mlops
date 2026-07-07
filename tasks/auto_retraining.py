@@ -7,6 +7,8 @@ from config import (
     TRAINING_PIPELINE_ID,
 )
 
+from helpers import wait_for_artifact  # THÊM: Import từ helper
+
 # =====================================================
 # Task Initialization
 # =====================================================
@@ -38,8 +40,23 @@ if not params["alert_task_id"]:
 # =====================================================
 
 alert_task = Task.get_task(task_id=params["alert_task_id"])
-alert_summary = alert_task.artifacts["alert_summary"].get()
-alert_lineage = alert_task.artifacts["alert_lineage"].get()
+
+# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+alert_summary = wait_for_artifact(
+    alert_task,
+    "alert_summary",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+
+alert_lineage = wait_for_artifact(
+    alert_task,
+    "alert_lineage",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
 # Logic Check: Nếu bước alerting không yêu cầu alert/retrain thì thoát
 if not alert_summary.get("alert", False):
@@ -127,4 +144,8 @@ task.get_logger().report_text(
 
 # Đóng task ngay lập tức để Agent có thể quay lại Queue
 # và bốc task 'extract' của pipeline vừa trigger, tránh Deadlock.
+
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
+
 task.close()

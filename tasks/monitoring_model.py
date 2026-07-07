@@ -22,6 +22,7 @@ from config import (
     MONITORING_R2_THRESHOLD,
 )
 
+from helpers import wait_for_artifact  # THÊM: Import từ helper
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -64,7 +65,14 @@ if (
 
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-feature_dataset_id = feature_task.artifacts["feature_dataset_id"].get()
+# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
+feature_dataset_id = wait_for_artifact(
+    feature_task,
+    "feature_dataset_id",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
 feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
 
@@ -78,11 +86,30 @@ actual_df = pd.read_parquet(local_path / "test.parquet")
 
 inference_task = Task.get_task(task_id=params["inference_task_id"])
 
-prediction_df = inference_task.artifacts["prediction_df"].get()
+# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+prediction_df = wait_for_artifact(
+    inference_task,
+    "prediction_df",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
-prediction_summary = inference_task.artifacts["prediction_summary"].get()
+prediction_summary = wait_for_artifact(
+    inference_task,
+    "prediction_summary",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
-prediction_lineage = inference_task.artifacts["prediction_lineage"].get()
+prediction_lineage = wait_for_artifact(
+    inference_task,
+    "prediction_lineage",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
 # =====================================================
 # Load drift summary
@@ -90,11 +117,30 @@ prediction_lineage = inference_task.artifacts["prediction_lineage"].get()
 
 drift_task = Task.get_task(task_id=params["drift_task_id"])
 
-drift_summary = drift_task.artifacts["drift_summary"].get()
+# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+drift_summary = wait_for_artifact(
+    drift_task,
+    "drift_summary",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
-drift_result = drift_task.artifacts["drift_result"].get()
+drift_result = wait_for_artifact(
+    drift_task,
+    "drift_result",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
-drift_lineage = drift_task.artifacts["drift_lineage"].get()
+drift_lineage = wait_for_artifact(
+    drift_task,
+    "drift_lineage",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
 drift_ratio = drift_summary["drift_ratio"]
 
@@ -406,5 +452,8 @@ task.get_logger().report_table(
 )
 
 print(monitoring_summary)
+
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
 
 task.close()

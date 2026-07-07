@@ -8,6 +8,8 @@ from config import (
     TEMPLATE_COMPARE_CHAMPION_NAME,
 )
 
+from helpers import wait_for_artifact  # THÊM: Import từ helper
+
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
     task_name=TEMPLATE_COMPARE_CHAMPION_NAME,
@@ -41,8 +43,23 @@ register_task = Task.get_task(
     task_id=params["register_task_id"],
 )
 
-register_summary = register_task.artifacts["register_summary"].get()
-register_lineage = register_task.artifacts["register_lineage"].get()
+# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+register_summary = wait_for_artifact(
+    register_task,
+    "register_summary",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+
+register_lineage = wait_for_artifact(
+    register_task,
+    "register_lineage",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+
 candidate_model_id = register_summary.get("model_id")
 
 compare_lineage = {
@@ -144,4 +161,8 @@ compare_lineage["champion_model_id"] = champion_model_id
 task.upload_artifact("compare_lineage", compare_lineage)
 
 task.get_logger().report_text(f"✅ Compare Champion completed. Win: {candidate_win}")
+
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
+
 task.close()

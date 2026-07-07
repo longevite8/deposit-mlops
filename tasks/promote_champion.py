@@ -10,6 +10,7 @@ from config import (
     TEMPLATE_PROMOTE_CHAMPION_NAME,
 )
 
+from helpers import wait_for_artifact  # THÊM: Import từ helper
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -40,7 +41,24 @@ if not params["compare_task_id"]:
 # =====================================================
 
 compare_task = Task.get_task(task_id=params["compare_task_id"])
-compare_summary = compare_task.artifacts["compare_summary"].get()
+
+# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+compare_summary = wait_for_artifact(
+    compare_task,
+    "compare_summary",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+
+compare_lineage = wait_for_artifact(
+    compare_task,
+    "compare_lineage",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+
 candidate_win = compare_summary.get("candidate_win", False)
 
 if not candidate_win:
@@ -226,5 +244,8 @@ task.get_logger().report_text(
         Promotion Task : {task.id}
     """
 )
+
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
 
 task.close()

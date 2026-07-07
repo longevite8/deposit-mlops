@@ -16,9 +16,11 @@ from config import (
     DRIFT_RATIO_THRESHOLD,
     FEATURE_COLUMNS,
     PROJECT_TEMPLATE,
-    PROJECT_DATASET,  # THÊM: Import PROJECT_DATASET để dùng cho fallback
+    PROJECT_DATASET,
     TEMPLATE_DRIFT_NAME,
 )
+
+from helpers import wait_for_artifact, wait_for_metadata  # THÊM: Import từ helper
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +60,16 @@ if not params["feature_task_id"]:
 
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-feature_dataset_id = feature_task.artifacts["feature_dataset_id"].get()
-
-feature_dataset = Dataset.get(
-    dataset_id=feature_dataset_id,
+# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
+feature_dataset_id = wait_for_artifact(
+    feature_task,
+    "feature_dataset_id",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
 )
+
+feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
 
 local_path = Path(feature_dataset.get_local_copy())
 
@@ -75,78 +82,64 @@ current_train_df = pd.read_parquet(local_path / "train.parquet")
 # so drift detection is skipped gracefully (PASS).
 # =====================================================
 
-champion_models = Model.query_models(
-    tags=["champion"],
-    only_published=True,
-    max_results=1,
-)
-
-if not champion_models:
-    task.get_logger().report_text(
-        "No champion model found. Using current dataset as reference (first run). "
-        "Drift detection will report PASS."
+# Lấy Champion Model metadata (nếu có)
+try:
+    champion_models = Model.query_models(
+        system_tags=["champion"],
     )
-
-    reference_feature_dataset_id = feature_dataset_id
-
-    champion_model_id = ""
-
-    champion_train_task_id = ""
-
-    reference_df = current_train_df.copy().reset_index(drop=True)
-
-else:
-    champion_model = champion_models[0]
-    champion_metadata = champion_model.get_all_metadata()
-    champion_model_id = champion_model.id
-
-    # Metadata key is stored as "train_task_id" (set by promote_champion.py)
-    champion_train_task_id = champion_metadata.get("train_task_id", {}).get("value", "")
-
-    # SỬA: Truy cập metadata an toàn hơn
-    reference_feature_dataset_id = champion_metadata.get("feature_dataset_id", {}).get(
-        "value"
-    )
-
-    if not reference_feature_dataset_id or not isinstance(
-        reference_feature_dataset_id, str
-    ):
-        task.get_logger().report_text(
-            "Champion missing or invalid feature_dataset_id metadata. Falling back to name."
+    
+    if champion_models:
+        champion_model = champion_models[0]
+        
+        # SỬA: Dùng wait_for_metadata để chắc chắn metadata sẵn sàng
+        reference_feature_dataset_id = wait_for_metadata(
+            champion_model,
+            "feature_dataset_id",
+            max_retries=10,
+            wait_interval=2.0,
+            logger_obj=task,
         )
-        champion_dataset = Dataset.get(
-            dataset_project=PROJECT_DATASET,
-            dataset_name="Deposit Feature Dataset",
-        )
-    else:
-        # SỬA: Bọc Dataset.get để tránh crash do Metadata chưa đồng bộ (Race Condition)
-        try:
-            champion_dataset = Dataset.get(dataset_id=reference_feature_dataset_id)
-        except Exception as e:
+        
+        champion_dataset = Dataset.get(dataset_id=reference_feature_dataset_id)
+
+        reference_feature_dataset_id = champion_dataset.id  # Cập nhật lại ID thực tế
+        champion_model_id = champion_model.id
+
+        # Metadata key is stored as "train_task_id" (set by promote_champion.py)
+        champion_train_task_id = champion_model.get_metadata("train_task_id")
+
+        # SỬA: Truy cập metadata an toàn hơn
+        reference_feature_dataset_id = champion_model.get_metadata("feature_dataset_id")
+
+        if not reference_feature_dataset_id or not isinstance(
+            reference_feature_dataset_id, str
+        ):
             task.get_logger().report_text(
-                f"Warning: Could not get Dataset by ID {reference_feature_dataset_id}: {e}"
+                "Champion missing or invalid feature_dataset_id metadata. Falling back to name."
             )
-            task.get_logger().report_text(
-                "Falling back to latest finalized dataset by name..."
-            )
-            # Bây giờ PROJECT_DATASET đã được định nghĩa nhờ vào import ở trên
             champion_dataset = Dataset.get(
                 dataset_project=PROJECT_DATASET,
                 dataset_name="Deposit Feature Dataset",
             )
+    else:
+        task.get_logger().report_text(
+            "No champion model found. Using current dataset as reference (first run). "
+            "Drift detection will report PASS."
+        )
 
-    reference_feature_dataset_id = champion_dataset.id  # Cập nhật lại ID thực tế
-    champion_path = Path(champion_dataset.get_local_copy())
+        reference_feature_dataset_id = feature_dataset_id
 
-    reference_df = pd.read_parquet(champion_path / "train.parquet").reset_index(
-        drop=True
-    )
+        champion_model_id = ""
 
-# =====================================================
-# Current dataset (use test split for production drift)
-# =====================================================
+        champion_train_task_id = ""
 
-current_df = current_train_df.copy().reset_index(drop=True)
+        reference_df = current_train_df.copy().reset_index(drop=True)
+
+        # =====================================================
+        # Current dataset (use test split for production drift)
+        # =====================================================
+
+        current_df = current_train_df.copy().reset_index(drop=True)
 
 
 # =====================================================
@@ -330,5 +323,7 @@ print(
     drift_summary,
 )
 
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
 
 task.close()

@@ -108,4 +108,7 @@ task.get_logger().report_text(f"raw_dataset_id={dataset.id}")
 print(df.head())
 print("✅ Extract completed.")
 
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
+
 task.close()

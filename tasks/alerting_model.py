@@ -20,6 +20,8 @@ from config import (
     TEMPLATE_ALERTING_NAME,
 )
 
+from helpers import wait_for_artifact  # THÊM: Import từ helper
+
 
 # =====================================================
 # Email helper
@@ -156,11 +158,30 @@ if not params["monitoring_task_id"]:
 
 monitoring_task = Task.get_task(task_id=params["monitoring_task_id"])
 
-monitoring_summary = monitoring_task.artifacts["monitoring_summary"].get()
+# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+monitoring_summary = wait_for_artifact(
+    monitoring_task,
+    "monitoring_summary",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
-monitoring_metrics = monitoring_task.artifacts["monitoring_metrics"].get()
+monitoring_metrics = wait_for_artifact(
+    monitoring_task,
+    "monitoring_metrics",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
-monitoring_lineage = monitoring_task.artifacts["monitoring_lineage"].get()
+monitoring_lineage = wait_for_artifact(
+    monitoring_task,
+    "monitoring_lineage",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
 need_retraining = monitoring_summary["need_retraining"]
 
@@ -252,5 +273,8 @@ markdown = f"""
 """
 
 task.get_logger().report_text(markdown)
+
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
 
 task.close()

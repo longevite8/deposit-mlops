@@ -25,6 +25,7 @@ from config import (
     TEMPLATE_EVALUATE_NAME,
 )
 
+from helpers import wait_for_artifact  # THÊM: Import từ helper
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -61,7 +62,14 @@ feature_task = Task.get_task(
     task_id=params["feature_task_id"],
 )
 
-feature_dataset_id = feature_task.artifacts["feature_dataset_id"].get()
+# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
+feature_dataset_id = wait_for_artifact(
+    feature_task,
+    "feature_dataset_id",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
 feature_dataset = Dataset.get(
     dataset_id=feature_dataset_id,
@@ -198,5 +206,8 @@ task.get_logger().report_single_value("quality_gate_passed", int(passed))
 task.get_logger().report_text(f"Evaluation result = {evaluation_result}")
 
 print(evaluation_result)
+
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
 
 task.close()

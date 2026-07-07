@@ -9,10 +9,11 @@ from config import (
     MAX_VALUE,
     MAX_MISSING_RATE,
     PROJECT_TEMPLATE,
-    PROJECT_DATASET,  # THÊM: Import dự án dataset
     REQUIRED_COLUMNS,
     TEMPLATE_VALIDATE_NAME,
 )
+
+from helpers import wait_for_artifact  # THÊM: Import từ helper
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -47,27 +48,16 @@ if not params["feature_task_id"]:
 
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-# SỬA: Lấy giá trị artifact một cách an toàn
-feature_dataset_id = feature_task.artifacts["feature_dataset_id"].get()
+# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
+feature_dataset_id = wait_for_artifact(
+    feature_task,
+    "feature_dataset_id",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
-# THÊM: Log debug để kiểm tra ID trên Web UI
-print(f"DEBUG: Feature Dataset ID retrieved: {feature_dataset_id}")
-
-# SỬA: Bọc Dataset.get với cơ chế Fallback
-try:
-    # Thử lấy theo ID (có thể lỗi nếu backend chưa index kịp)
-    feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
-except Exception:
-    task.get_logger().report_text(
-        f"Warning: ID {feature_dataset_id} not indexed as Dataset yet. Falling back to latest by name."
-    )
-    # Fallback: Lấy bản finalized mới nhất theo tên và project
-    feature_dataset = Dataset.get(
-        dataset_project=PROJECT_DATASET, dataset_name="Deposit Feature Dataset"
-    )
-
-if not feature_dataset:
-    raise ValueError(f"Could not find a valid Dataset for {feature_dataset_id}")
+feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
 
 local_path = Path(feature_dataset.get_local_copy())
 
@@ -198,5 +188,8 @@ if not passed:
 task.get_logger().report_text(str(validation_report))
 
 print("Validation passed.")
+
+# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+task.flush()
 
 task.close()

@@ -166,7 +166,8 @@ config_content = config_path.read_text(encoding="utf-8")
 for var_name, new_id in new_ids.items():
     # Sử dụng Regex để tìm biến và thay thế giá trị trong dấu ngoặc kép
     pattern = rf'({var_name}\s*=\s*")[^"]*(")'
-    replacement = rf"\1{new_id}\2"
+    # SỬA: Sử dụng \g<1> và \g<2> để tránh xung đột khi new_id bắt đầu bằng chữ số
+    replacement = rf"\g<1>{new_id}\g<2>"
     config_content = re.sub(pattern, replacement, config_content)
 
 config_path.write_text(config_content, encoding="utf-8")

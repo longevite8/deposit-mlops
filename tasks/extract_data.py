@@ -87,16 +87,29 @@ try:
         dataset_project=PROJECT_DATASET,
         dataset_name="Deposit Raw Dataset",
     )
-except Exception:
-    # Nếu lỗi (có thể do Dataset đã tồn tại hoặc lỗi đồng bộ), lấy Dataset hiện có
+
+    dataset.add_files(tmp_dir)
+    dataset.upload()
+    dataset.finalize()
+
+    task.get_logger().report_text(f"✅ Created new dataset: {dataset.id}")
+
+except Exception as e:
+    # Nếu lỗi (Dataset đã tồn tại), lấy version finalized mới nhất theo tên
+    task.get_logger().report_text(
+        f"⚠️ Cannot create new dataset: {str(e)}. Falling back to latest finalized version."
+    )
+
     dataset = Dataset.get(
         dataset_project=PROJECT_DATASET,
         dataset_name="Deposit Raw Dataset",
     )
 
-dataset.add_files(tmp_dir)
-dataset.upload()
-dataset.finalize()
+    task.get_logger().report_text(f"✅ Using existing dataset: {dataset.id}")
+
+# =====================================================
+# Upload artifact
+# =====================================================
 
 task.upload_artifact(
     "raw_dataset_id",

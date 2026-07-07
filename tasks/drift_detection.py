@@ -16,6 +16,7 @@ from config import (
     DRIFT_RATIO_THRESHOLD,
     FEATURE_COLUMNS,
     PROJECT_TEMPLATE,
+    PROJECT_DATASET,  # THÊM: Import PROJECT_DATASET để dùng cho fallback
     TEMPLATE_DRIFT_NAME,
 )
 
@@ -107,16 +108,18 @@ else:
         "value"
     )
 
-    if not reference_feature_dataset_id:
+    if not reference_feature_dataset_id or not isinstance(
+        reference_feature_dataset_id, str
+    ):
         task.get_logger().report_text(
-            "Champion missing feature_dataset_id metadata. Falling back to name."
+            "Champion missing or invalid feature_dataset_id metadata. Falling back to name."
         )
         champion_dataset = Dataset.get(
             dataset_project=PROJECT_DATASET,
             dataset_name="Deposit Feature Dataset",
         )
     else:
-        # SỬA: Bọc Dataset.get trong try-except để tránh TypeError khi Task bị lỗi project name
+        # SỬA: Bọc Dataset.get để tránh crash do Metadata chưa đồng bộ (Race Condition)
         try:
             champion_dataset = Dataset.get(dataset_id=reference_feature_dataset_id)
         except Exception as e:
@@ -126,6 +129,7 @@ else:
             task.get_logger().report_text(
                 "Falling back to latest finalized dataset by name..."
             )
+            # Bây giờ PROJECT_DATASET đã được định nghĩa nhờ vào import ở trên
             champion_dataset = Dataset.get(
                 dataset_project=PROJECT_DATASET,
                 dataset_name="Deposit Feature Dataset",

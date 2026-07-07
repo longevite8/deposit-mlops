@@ -142,6 +142,9 @@ feature_dataset.upload()
 
 feature_dataset.finalize()
 
+# THÊM: Đồng bộ metadata của dataset lên server ngay lập tức
+task.flush()
+
 # =====================================================
 # Upload artifacts
 # =====================================================

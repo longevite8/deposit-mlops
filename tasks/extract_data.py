@@ -74,14 +74,25 @@ df.to_parquet(
     index=False,
 )
 
+# Đảm bảo Task hiện tại đã đồng bộ hoàn toàn với Server trước khi tạo Dataset
+task.flush()
+
 # =====================================================
 # Build Raw Dataset
 # =====================================================
 
-dataset = Dataset.create(
-    dataset_project=PROJECT_DATASET,
-    dataset_name="Deposit Raw Dataset",
-)
+try:
+    # Thử tạo mới Dataset
+    dataset = Dataset.create(
+        dataset_project=PROJECT_DATASET,
+        dataset_name="Deposit Raw Dataset",
+    )
+except Exception:
+    # Nếu lỗi (có thể do Dataset đã tồn tại hoặc lỗi đồng bộ), lấy Dataset hiện có
+    dataset = Dataset.get(
+        dataset_project=PROJECT_DATASET,
+        dataset_name="Deposit Raw Dataset",
+    )
 
 dataset.add_files(tmp_dir)
 dataset.upload()

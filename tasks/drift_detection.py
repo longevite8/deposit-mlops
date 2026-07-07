@@ -96,20 +96,42 @@ if not champion_models:
 
 else:
     champion_model = champion_models[0]
-
     champion_metadata = champion_model.get_all_metadata()
-
     champion_model_id = champion_model.id
 
     # Metadata key is stored as "train_task_id" (set by promote_champion.py)
     champion_train_task_id = champion_metadata.get("train_task_id", {}).get("value", "")
 
-    reference_feature_dataset_id = champion_metadata["feature_dataset_id"]["value"]
-
-    champion_dataset = Dataset.get(
-        dataset_id=reference_feature_dataset_id,
+    # SỬA: Truy cập metadata an toàn hơn
+    reference_feature_dataset_id = champion_metadata.get("feature_dataset_id", {}).get(
+        "value"
     )
 
+    if not reference_feature_dataset_id:
+        task.get_logger().report_text(
+            "Champion missing feature_dataset_id metadata. Falling back to name."
+        )
+        champion_dataset = Dataset.get(
+            dataset_project=PROJECT_DATASET,
+            dataset_name="Deposit Feature Dataset",
+        )
+    else:
+        # SỬA: Bọc Dataset.get trong try-except để tránh TypeError khi Task bị lỗi project name
+        try:
+            champion_dataset = Dataset.get(dataset_id=reference_feature_dataset_id)
+        except Exception as e:
+            task.get_logger().report_text(
+                f"Warning: Could not get Dataset by ID {reference_feature_dataset_id}: {e}"
+            )
+            task.get_logger().report_text(
+                "Falling back to latest finalized dataset by name..."
+            )
+            champion_dataset = Dataset.get(
+                dataset_project=PROJECT_DATASET,
+                dataset_name="Deposit Feature Dataset",
+            )
+
+    reference_feature_dataset_id = champion_dataset.id  # Cập nhật lại ID thực tế
     champion_path = Path(champion_dataset.get_local_copy())
 
     reference_df = pd.read_parquet(champion_path / "train.parquet").reset_index(

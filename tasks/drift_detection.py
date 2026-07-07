@@ -83,15 +83,21 @@ current_train_df = pd.read_parquet(local_path / "train.parquet")
 # =====================================================
 
 # Lấy Champion Model metadata (nếu có)
+# Ghi chú: xử lý an toàn để đảm bảo reference_df và current_df luôn được khởi tạo
 try:
     champion_models = Model.query_models(
         system_tags=["champion"],
     )
-    
-    if champion_models:
-        champion_model = champion_models[0]
-        
-        # SỬA: Dùng wait_for_metadata để chắc chắn metadata sẵn sàng
+except Exception as e:
+    task.get_logger().report_text(f"Error querying champion models: {e}")
+    champion_models = []
+
+if champion_models:
+    champion_model = champion_models[0]
+
+    # SỬA: Dùng wait_for_metadata để chắc chắn metadata sẵn sàng (nếu có)
+    reference_feature_dataset_id = None
+    try:
         reference_feature_dataset_id = wait_for_metadata(
             champion_model,
             "feature_dataset_id",
@@ -99,47 +105,71 @@ try:
             wait_interval=2.0,
             logger_obj=task,
         )
-        
-        champion_dataset = Dataset.get(dataset_id=reference_feature_dataset_id)
+    except Exception:
+        # ignore and try to read directly from model metadata
+        reference_feature_dataset_id = None
 
-        reference_feature_dataset_id = champion_dataset.id  # Cập nhật lại ID thực tế
-        champion_model_id = champion_model.id
-
-        # Metadata key is stored as "train_task_id" (set by promote_champion.py)
-        champion_train_task_id = champion_model.get_metadata("train_task_id")
-
-        # SỬA: Truy cập metadata an toàn hơn
+    # Fallback to model metadata if wait_for_metadata did not return a valid id
+    if not reference_feature_dataset_id or not isinstance(
+        reference_feature_dataset_id, str
+    ):
         reference_feature_dataset_id = champion_model.get_metadata("feature_dataset_id")
 
-        if not reference_feature_dataset_id or not isinstance(
-            reference_feature_dataset_id, str
-        ):
-            task.get_logger().report_text(
-                "Champion missing or invalid feature_dataset_id metadata. Falling back to name."
-            )
-            champion_dataset = Dataset.get(
-                dataset_project=PROJECT_DATASET,
-                dataset_name="Deposit Feature Dataset",
-            )
-    else:
+    # If still missing, fallback to dataset by name
+    if not reference_feature_dataset_id or not isinstance(
+        reference_feature_dataset_id, str
+    ):
         task.get_logger().report_text(
-            "No champion model found. Using current dataset as reference (first run). "
-            "Drift detection will report PASS."
+            "Champion missing or invalid feature_dataset_id metadata. Falling back to dataset by name."
         )
+        champion_dataset = Dataset.get(
+            dataset_project=PROJECT_DATASET,
+            dataset_name="Deposit Feature Dataset",
+        )
+        reference_feature_dataset_id = champion_dataset.id
+    else:
+        champion_dataset = Dataset.get(dataset_id=reference_feature_dataset_id)
 
-        reference_feature_dataset_id = feature_dataset_id
-
-        champion_model_id = ""
-
-        champion_train_task_id = ""
-
+    # Load reference dataset dataframe
+    try:
+        champion_local_path = Path(champion_dataset.get_local_copy())
+        reference_df = (
+            pd.read_parquet(champion_local_path / "train.parquet")
+            .copy()
+            .reset_index(drop=True)
+        )
+    except Exception as e:
+        task.get_logger().report_text(
+            f"Failed to load champion dataset locally: {e}; falling back to current dataset."
+        )
         reference_df = current_train_df.copy().reset_index(drop=True)
 
-        # =====================================================
-        # Current dataset (use test split for production drift)
-        # =====================================================
+    champion_model_id = champion_model.id
+    champion_train_task_id = champion_model.get_metadata("train_task_id") or ""
 
-        current_df = current_train_df.copy().reset_index(drop=True)
+    # =====================================================
+    # Current dataset (use test split for production drift)
+    # =====================================================
+    current_df = current_train_df.copy().reset_index(drop=True)
+else:
+    task.get_logger().report_text(
+        "No champion model found. Using current dataset as reference (first run). "
+        "Drift detection will report PASS."
+    )
+
+    reference_feature_dataset_id = feature_dataset_id
+
+    champion_model_id = ""
+
+    champion_train_task_id = ""
+
+    reference_df = current_train_df.copy().reset_index(drop=True)
+
+    # =====================================================
+    # Current dataset (use test split for production drift)
+    # =====================================================
+
+    current_df = current_train_df.copy().reset_index(drop=True)
 
 
 # =====================================================

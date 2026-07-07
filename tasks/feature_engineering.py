@@ -118,11 +118,21 @@ test_df.to_parquet(
     index=False,
 )
 
-feature_dataset = Dataset.create(
-    dataset_project=PROJECT_DATASET,
-    dataset_name="Deposit Feature Dataset",
-    parent_datasets=[raw_dataset],
-)
+# THÊM: Đảm bảo Task đã đồng bộ với Server trước khi tạo Dataset
+task.flush()
+
+# SỬA: Logic tạo Dataset an toàn hơn
+try:
+    feature_dataset = Dataset.create(
+        dataset_project=PROJECT_DATASET,
+        dataset_name="Deposit Feature Dataset",
+        parent_datasets=[raw_dataset],
+    )
+except Exception:
+    feature_dataset = Dataset.get(
+        dataset_project=PROJECT_DATASET,
+        dataset_name="Deposit Feature Dataset",
+    )
 
 feature_dataset.add_files(
     tmp_dir,

@@ -46,9 +46,22 @@ if not params["feature_task_id"]:
 
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
+# SỬA: Lấy giá trị artifact một cách an toàn
 feature_dataset_id = feature_task.artifacts["feature_dataset_id"].get()
 
-feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
+# THÊM: Log debug để kiểm tra ID trên Web UI
+print(f"DEBUG: Feature Dataset ID retrieved: {feature_dataset_id}")
+
+# SỬA: Bọc Dataset.get để tránh crash nếu ID chưa sẵn sàng
+try:
+    feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
+except Exception as e:
+    task.get_logger().report_text(
+        f"Error: {feature_dataset_id} is not a valid Dataset ID yet."
+    )
+    raise ValueError(
+        f"ID {feature_dataset_id} is not a finalized Dataset. Check Feature Task status."
+    ) from e
 
 local_path = Path(feature_dataset.get_local_copy())
 

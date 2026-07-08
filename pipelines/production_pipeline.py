@@ -35,8 +35,6 @@ pipe.task.add_tags(
     [
         "pipeline",
         "production",
-        "automated",
-        f"run_{timestamp}",
     ]
 )
 

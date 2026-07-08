@@ -93,13 +93,13 @@ new_pipeline.set_parameters(
     }
 )
 
-new_pipeline.set_tags(
-    [
-        "pipeline:training",
-        "trigger:auto_retraining",
-        f"model:{alert_lineage.get('model_id', 'unknown')}",
-    ]
-)
+# new_pipeline.set_tags(
+#     [
+#         "pipeline:training",
+#         "trigger:auto_retraining",
+#         f"model:{alert_lineage.get('model_id', 'unknown')}",
+#     ]
+# )
 
 # Enqueue to Services Queue (thường dùng cho pipeline controllers)
 Task.enqueue(

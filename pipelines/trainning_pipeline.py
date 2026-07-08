@@ -67,8 +67,6 @@ if is_automated:
             "pipeline",
             "training",
             "automated",
-            f"run_{timestamp}",
-            "triggered_by_alerting",
         ]
     )
     run_description = "Auto-triggered Training Pipeline (by auto-retraining task)"
@@ -79,8 +77,6 @@ else:
             "pipeline",
             "training",
             "manual",
-            f"run_{timestamp}",
-            "started_by_user",
         ]
     )
     run_description = "Manual Training Pipeline (user-initiated)"

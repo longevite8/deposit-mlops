@@ -23,7 +23,7 @@ PROJECT_DATASET = f"{PROJECT_PARENT}/Datasets"
 TRAINING_PIPELINE_NAME = "Training Pipeline"
 PRODUCTION_PIPELINE_NAME = "Production Pipeline"
 
-DEPLOYMENT_VERSION = "v1"
+DEPLOYMENT_VERSION = "1.0.0"  # Versioning for production deployment
 RANDOM_STATE = 42
 
 # =====================================================
@@ -219,7 +219,7 @@ TEMPLATE_ALERTING_ID = "caf30c4cba6948afbbc76f6064ffe9ce"
 TEMPLATE_AUTO_RETRAINING_ID = "edb0bd0c87f441c591d3b2f819e4d6ba"
 TEMPLATE_EXPLAIN_ID = "d600c853157e43ddb482322bd93f661a"
 
-TRAINING_PIPELINE_ID = "2bd1dd5f760b4cee82bbf774bf7a1d39"
+TRAINING_PIPELINE_ID = "8a612ba2dca741649c5e7e9e81f982bc"
 # =====================================================
 # Utility Functions
 # =====================================================

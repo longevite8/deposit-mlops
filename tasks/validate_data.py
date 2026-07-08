@@ -9,6 +9,7 @@ from config import (
     MAX_VALUE,
     MAX_MISSING_RATE,
     PROJECT_TEMPLATE,
+    PROJECT_DATASET,
     REQUIRED_COLUMNS,
     TEMPLATE_VALIDATE_NAME,
 )
@@ -57,11 +58,57 @@ feature_dataset_id = wait_for_artifact(
     logger_obj=task,
 )
 
-feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
+task.get_logger().report_text(f"📌 Loading feature dataset: {feature_dataset_id}")
+
+# SỬA: Thêm try-except với fallback logic
+try:
+    feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
+    task.get_logger().report_text(
+        f"✅ Feature dataset loaded by ID: {feature_dataset.id}"
+    )
+except ValueError as e:
+    task.get_logger().report_text(
+        f"⚠️ Cannot load dataset by ID ({feature_dataset_id}): {str(e)}\n"
+        f"   Falling back to latest finalized by name...",
+        level="warning",
+    )
+
+    try:
+        feature_dataset = Dataset.get(
+            dataset_project=PROJECT_DATASET,
+            dataset_name="Deposit Feature Dataset",
+        )
+        task.get_logger().report_text(
+            f"✅ Feature dataset loaded by name (fallback): {feature_dataset.id}"
+        )
+    except Exception as e2:
+        task.get_logger().report_text(
+            f"❌ Failed to load feature dataset:\n"
+            f"   By ID: {str(e)}\n"
+            f"   By Name: {str(e2)}",
+            level="error",
+        )
+        raise ValueError(f"Could not load feature dataset: {e2}")
 
 local_path = Path(feature_dataset.get_local_copy())
 
-train_df = pd.read_parquet(local_path / "train.parquet")
+task.get_logger().report_text(f"📂 Dataset local path: {local_path}")
+
+# Check file tồn tại không
+train_parquet = local_path / "train.parquet"
+if not train_parquet.exists():
+    task.get_logger().report_text(
+        f"❌ train.parquet not found in {local_path}\n"
+        f"   Available files: {list(local_path.glob('*'))}",
+        level="error",
+    )
+    raise FileNotFoundError(f"train.parquet not found in {local_path}")
+
+train_df = pd.read_parquet(train_parquet)
+
+task.get_logger().report_text(
+    f"✅ Loaded training data: {len(train_df)} rows, {len(train_df.columns)} columns"
+)
 
 # =====================================================
 # Validate on training set (representative split)
@@ -187,9 +234,12 @@ if not passed:
 
 task.get_logger().report_text(str(validation_report))
 
-print("Validation passed.")
+print("✅ Validation passed.")
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+# =====================================================
+# Final flush before closing
+# =====================================================
+
 task.flush()
 
 task.close()

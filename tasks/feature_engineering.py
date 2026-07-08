@@ -1,5 +1,6 @@
 import os
 import tempfile
+import time
 
 from clearml import (
     Task,
@@ -73,15 +74,19 @@ raw_dataset_id = wait_for_artifact(
 try:
     # Thử lấy Dataset theo ID từ artifact
     raw_dataset = Dataset.get(dataset_id=raw_dataset_id)
-except Exception:
+    task.get_logger().report_text(f"✅ Raw dataset loaded: {raw_dataset.id}")
+except Exception as e:
     task.get_logger().report_text(
-        f"Warning: ID {raw_dataset_id} not indexed as Dataset yet. Falling back to latest finalized by name."
+        f"⚠️ Cannot get dataset by ID ({raw_dataset_id}): {str(e)}\n"
+        f"   Falling back to latest finalized by name...",
+        level="warning",
     )
     # Fallback: Lấy version finalized mới nhất theo tên
     raw_dataset = Dataset.get(
         dataset_project=PROJECT_DATASET,
         dataset_name="Deposit Raw Dataset",  # Đảm bảo tên này khớp với tên đặt trong extract_data.py
     )
+    task.get_logger().report_text(f"✅ Raw dataset loaded (fallback): {raw_dataset.id}")
 
 if not raw_dataset:
     raise ValueError(f"Could not find a valid Raw Dataset for ID: {raw_dataset_id}")
@@ -144,32 +149,105 @@ test_df.to_parquet(
     index=False,
 )
 
-# THÊM: Đảm bảo Task đã đồng bộ với Server trước khi tạo Dataset
-task.flush()
-
-# SỬA: Logic tạo Dataset an toàn hơn
-try:
-    feature_dataset = Dataset.create(
-        dataset_project=PROJECT_DATASET,
-        dataset_name="Deposit Feature Dataset",
-        parent_datasets=[raw_dataset],
-    )
-except Exception:
-    feature_dataset = Dataset.get(
-        dataset_project=PROJECT_DATASET,
-        dataset_name="Deposit Feature Dataset",
-    )
-
-feature_dataset.add_files(
-    tmp_dir,
+task.get_logger().report_text(
+    f"✅ Created train/valid/test splits:\n"
+    f"   Train: {len(train_df)} rows\n"
+    f"   Valid: {len(valid_df)} rows\n"
+    f"   Test: {len(test_df)} rows"
 )
 
+# =====================================================
+# Ensure Task is synchronized with Server before creating Dataset
+# =====================================================
+
+task.flush()
+
+# =====================================================
+# Build Feature Dataset (with retry logic)
+# =====================================================
+
+max_retries = 3
+feature_dataset = None
+
+for attempt in range(max_retries):
+    try:
+        task.get_logger().report_text(
+            f"📌 Creating feature dataset (attempt {attempt + 1}/{max_retries})..."
+        )
+
+        feature_dataset = Dataset.create(
+            dataset_project=PROJECT_DATASET,
+            dataset_name="Deposit Feature Dataset",
+            parent_datasets=[raw_dataset],
+        )
+
+        task.get_logger().report_text(
+            f"✅ Feature dataset created: {feature_dataset.id}"
+        )
+        break
+
+    except Exception as e:
+        if attempt < max_retries - 1:
+            task.get_logger().report_text(
+                f"⚠️ Attempt {attempt + 1} failed: {str(e)}\n"
+                f"   Retrying in 2 seconds...",
+                level="warning",
+            )
+            time.sleep(2)
+        else:
+            task.get_logger().report_text(
+                f"⚠️ Cannot create new dataset after {max_retries} attempts.\n"
+                f"   Getting existing dataset by name...",
+                level="warning",
+            )
+            feature_dataset = Dataset.get(
+                dataset_project=PROJECT_DATASET,
+                dataset_name="Deposit Feature Dataset",
+            )
+            task.get_logger().report_text(
+                f"✅ Using existing feature dataset: {feature_dataset.id}"
+            )
+
+if not feature_dataset:
+    raise ValueError("Could not create or get feature dataset")
+
+# =====================================================
+# Add files and upload Dataset
+# =====================================================
+
+feature_dataset.add_files(tmp_dir)
+
+task.get_logger().report_text("📤 Uploading dataset files...")
 feature_dataset.upload()
 
+task.get_logger().report_text("📌 Finalizing dataset...")
 feature_dataset.finalize()
 
-# THÊM: Đồng bộ metadata của dataset lên server ngay lập tức
+task.get_logger().report_text(f"✅ Dataset finalized: {feature_dataset.id}")
+
+# =====================================================
+# QUAN TRỌNG: Flush ngay sau khi finalize Dataset
+# =====================================================
+
+time.sleep(1)  # Chờ ClearML server xử lý
 task.flush()
+
+# =====================================================
+# Verify Dataset ID trước khi upload artifact
+# =====================================================
+
+try:
+    # Verify dataset ID có valid không
+    verify_dataset = Dataset.get(dataset_id=feature_dataset.id)
+    task.get_logger().report_text(f"✅ Dataset ID verified: {verify_dataset.id}")
+    final_dataset_id = verify_dataset.id
+except Exception as e:
+    task.get_logger().report_text(
+        f"⚠️ Dataset ID verification failed: {str(e)}\n"
+        f"   Using dataset ID from object anyway: {feature_dataset.id}",
+        level="warning",
+    )
+    final_dataset_id = feature_dataset.id
 
 # =====================================================
 # Upload artifacts
@@ -182,11 +260,11 @@ task.upload_artifact(
 
 task.upload_artifact(
     "feature_dataset_id",
-    feature_dataset.id,
+    final_dataset_id,  # ← Dùng verified dataset ID
 )
 
 feature_dataset_info = {
-    "dataset_id": feature_dataset.id,
+    "dataset_id": final_dataset_id,
     "raw_dataset_id": raw_dataset_id,
     "train_rows": len(train_df),
     "valid_rows": len(valid_df),
@@ -209,7 +287,7 @@ task.get_logger().report_text(
     f"train={len(train_df)}, valid={len(valid_df)}, test={len(test_df)}"
 )
 
-task.get_logger().report_text(f"Feature Dataset ID = {feature_dataset.id}")
+task.get_logger().report_text(f"Feature Dataset ID = {final_dataset_id}")
 
 task.get_logger().report_text(f"Raw Dataset ID = {raw_dataset_id}")
 
@@ -217,7 +295,7 @@ task.get_logger().report_text(
     f"""
     Feature Dataset
     ------------------------
-    id : {feature_dataset.id}
+    id : {final_dataset_id}
 
     train : {len(train_df)}
 
@@ -227,9 +305,12 @@ task.get_logger().report_text(
     """
 )
 
-print("Feature engineering completed.")
+print("✅ Feature engineering completed.")
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+# =====================================================
+# Final flush before closing
+# =====================================================
+
 task.flush()
 
 task.close()

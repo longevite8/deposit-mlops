@@ -150,6 +150,12 @@ pipe.start()
 print("✅ Production Pipeline started")
 print(f"   Task ID: {pipe.task.id}")
 print(f"   Project: {pipe.task.project}")
-print(
-    f"   UI URL: http://192.168.140.248:8080/projects/{pipe.task.project_id}/experiments/{pipe.task.id}/output/log"
-)
+# SỬA: Dùng get_project_id() hoặc bỏ project_id
+try:
+    project_id = pipe.task.get_project_id()
+    print(
+        f"   UI URL: http://192.168.140.248:8080/projects/{project_id}/experiments/{pipe.task.id}/output/log"
+    )
+except Exception:
+    # Nếu get_project_id() fail, dùng project name
+    print(f"   UI URL: http://192.168.140.248:8080/tasks/{pipe.task.id}")

@@ -1,5 +1,6 @@
 from clearml.automation import PipelineController
 from datetime import datetime
+import os
 
 from config import (
     PROJECT_PIPELINE,
@@ -19,24 +20,75 @@ from config import (
     TRAINING_PIPELINE_NAME,
     DEPLOYMENT_VERSION,
     N_SHAP_SAMPLES,
+    CLEARML_SERVER_URL,  # ← THÊM IMPORT NÀY
 )
 
 # =====================================================
-# IMPORTANT: Thêm timestamp động để tránh version conflict
+# IMPORTANT: Phát hiện chế độ chạy (manual vs automated)
 # =====================================================
 
-# SỬA: Tạo version động với timestamp
+# Cách 1: Check xem có parent task (auto-retraining) không
+parent_task_id = None
+is_automated = False
+try:
+    from clearml import Task
+
+    current_task = Task.current_task()
+    if current_task:
+        parent_task_id = current_task.id
+        is_automated = True
+except Exception:
+    pass
+
+# Cách 2: Hoặc check từ environment variable
+if not is_automated:
+    is_automated = os.getenv("CLEARML_AUTO_RETRAINING", "false").lower() == "true"
+
+# Phát hiện chế độ
+run_mode = "automated" if is_automated else "manual"
+
+# =====================================================
+# Tạo version semantic cố định + timestamp
+# =====================================================
+
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-pipeline_version = f"{DEPLOYMENT_VERSION}_{timestamp}"
 
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
     name=TRAINING_PIPELINE_NAME,
-    version=pipeline_version,  # ✅ Version giờ là "v1_20240115_143022"
+    version=DEPLOYMENT_VERSION,  # ✅ Sử dụng DEPLOYMENT_VERSION từ config (không hardcode)
 )
 
-# Thêm tags để ClearML nhận diện đây là Pipeline
-pipe.task.add_tags(["pipeline", "training", "automated"])
+# SỬA: Thêm tags khác biệt dựa trên chế độ chạy
+if is_automated:
+    # Tags cho lần chạy tự động (triggered by auto-retraining)
+    pipe.task.add_tags(
+        [
+            "pipeline",
+            "training",
+            "automated",  # ← TỰ ĐỘNG
+            f"run_{timestamp}",
+            "triggered_by_alerting",
+        ]
+    )
+    run_description = "Auto-triggered Training Pipeline (by auto-retraining task)"
+else:
+    # Tags cho lần chạy bằng tay (manual)
+    pipe.task.add_tags(
+        [
+            "pipeline",
+            "training",
+            "manual",  # ← BỎ TÁY
+            f"run_{timestamp}",
+            "started_by_user",
+        ]
+    )
+    run_description = "Manual Training Pipeline (user-initiated)"
+
+# Thêm description với thông tin chi tiết
+pipe.task.set_description(
+    f"{run_description}\nTimestamp: {timestamp}\nRun Mode: {run_mode.upper()}"
+)
 
 pipe.set_default_execution_queue(SERVICES_QUEUE)
 
@@ -215,16 +267,20 @@ pipe.task.flush()
 pipe.start()
 
 # =====================================================
-# Log với thêm thông tin chi tiết
+# Log với thêm thông tin chi tiết - phân biệt manual vs automated
 # =====================================================
 
 print("=" * 70)
-print("✅ Training Pipeline started with caching enabled")
+print(f"✅ Training Pipeline started ({run_mode.upper()})")
 print("=" * 70)
 print(f"   Task ID: {pipe.task.id}")
 print(f"   Project: {pipe.task.project}")
 print(f"   Pipeline Name: {TRAINING_PIPELINE_NAME}")
-print(f"   Version: {pipeline_version}")
+print(f"   Version: {DEPLOYMENT_VERSION}")  # ✅ Dùng biến từ config
 print(f"   Timestamp: {timestamp}")
-print(f"   UI URL: http://192.168.140.248:8080/tasks/{pipe.task.id}")
+print(f"   Run Mode: {run_mode.upper()}")
+print(f"   Tags: {pipe.task.get_tags()}")
+print(f"   Description: {run_description}")
+# SỬA: Dùng CLEARML_SERVER_URL từ config (lấy từ env var)
+print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipe.task.id}")
 print("=" * 70)

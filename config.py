@@ -4,6 +4,13 @@ All constants should be defined here — never hardcode values in task files.
 """
 
 import os
+from dotenv import load_dotenv
+
+# =====================================================
+# Load environment variables từ .env file
+# =====================================================
+
+load_dotenv()
 
 # =====================================================
 # Project & Environment
@@ -18,6 +25,15 @@ PRODUCTION_PIPELINE_NAME = "Production Pipeline"
 
 DEPLOYMENT_VERSION = "v1"
 RANDOM_STATE = 42
+
+# =====================================================
+# THÊM: ClearML Server Configuration (từ Environment Variable)
+# =====================================================
+
+CLEARML_SERVER_URL = os.getenv(
+    "CLEARML_SERVER_URL",
+    "http://192.168.140.248:8080",  # ← Default value nếu env var không set
+)
 
 # =====================================================
 # Queues

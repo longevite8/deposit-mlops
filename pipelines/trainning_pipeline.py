@@ -17,9 +17,12 @@ from config import (
     TEMPLATE_EXPLAIN_ID,
     TRAINING_PIPELINE_NAME,
     DEPLOYMENT_VERSION,
-    N_SHAP_SAMPLES,  # ← THÊM DÒNG NÀY
+    N_SHAP_SAMPLES,
 )
 
+# =====================================================
+# IMPORTANT: Đảm bảo pipeline được nhận diện đúng cách
+# =====================================================
 
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
@@ -27,23 +30,24 @@ pipe = PipelineController(
     version=DEPLOYMENT_VERSION,
 )
 
+# Thêm tags để ClearML nhận diện đây là Pipeline
+pipe.task.add_tags(["pipeline", "training", "automated"])
+
 pipe.set_default_execution_queue(SERVICES_QUEUE)
 
-
 # =====================================================
-# Extract
+# Extract (KHÔNG cache - data source có thể thay đổi)
 # =====================================================
 
 pipe.add_step(
     name="extract",
     base_task_id=TEMPLATE_EXTRACT_ID,
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,
+    cache_executed_step=False,  # ✅ KHÔNG cache vì source data thay đổi
 )
 
-
 # =====================================================
-# Feature
+# Feature (Cache - output cố định)
 # =====================================================
 
 pipe.add_step(
@@ -54,12 +58,11 @@ pipe.add_step(
         "General/extract_task_id": "${extract.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,
+    cache_executed_step=True,  # ✅ Cache vì output cố định từ extract
 )
 
-
 # =====================================================
-# Validate
+# Validate (Cache - validation rules cố định)
 # =====================================================
 
 pipe.add_step(
@@ -68,65 +71,65 @@ pipe.add_step(
     base_task_id=TEMPLATE_VALIDATE_ID,
     parameter_override={"General/feature_task_id": "${feature.id}"},
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,
+    cache_executed_step=True,  # ✅ Cache - rules không đổi
 )
 
-
 # =====================================================
-# Drift
+# Drift (KHÔNG cache - so sánh vs historical data)
 # =====================================================
 
 pipe.add_step(
     name="drift",
-    parents=["validate", "feature"],  # ✅ Thêm "feature" vì dùng ${feature.id}
+    parents=["validate"],  # ✅ Chỉ phụ thuộc validate
     base_task_id=TEMPLATE_DRIFT_ID,
     parameter_override={"General/feature_task_id": "${feature.id}"},
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,
+    cache_executed_step=False,  # ✅ KHÔNG cache - so sánh data thay đổi
 )
 
-
 # =====================================================
-# HPO
+# HPO (Cache - hyperparameters cố định)
 # =====================================================
 
 pipe.add_step(
     name="hpo",
-    parents=["drift", "feature"],  # ✅ Thêm "feature"
+    parents=["drift"],  # ✅ Chỉ phụ thuộc drift
     base_task_id=TEMPLATE_HPO_ID,
     parameter_override={"General/feature_task_id": "${feature.id}"},
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,
+    cache_executed_step=True,  # ✅ Cache - hyperparameters cố định
 )
 
 # =====================================================
-# Train
+# Train (Cache - model cố định từ input)
 # =====================================================
 
 pipe.add_step(
     name="train",
-    parents=["hpo", "feature"],  # ✅ Thêm "feature"
+    parents=["hpo"],  # ✅ Chỉ phụ thuộc hpo
     base_task_id=TEMPLATE_TRAIN_ID,
     parameter_override={
         "General/feature_task_id": "${feature.id}",
         "General/hpo_task_id": "${hpo.id}",
     },
     execution_queue=CPU_QUEUE,
+    cache_executed_step=True,  # ✅ Cache - model cố định
 )
 
 # =====================================================
-# Evaluate
+# Evaluate (Cache - metrics cố định)
 # =====================================================
 
 pipe.add_step(
     name="evaluate",
-    parents=["train", "feature"],  # ✅ Thêm "feature"
+    parents=["train"],  # ✅ Chỉ phụ thuộc train
     base_task_id=TEMPLATE_EVALUATE_ID,
     parameter_override={
         "General/feature_task_id": "${feature.id}",
         "General/train_task_id": "${train.id}",
     },
     execution_queue=CPU_QUEUE,
+    cache_executed_step=True,  # ✅ Cache - metrics cố định
     monitor_metrics=[
         ("MAPE", "mape"),
         ("R2", "r2"),
@@ -134,7 +137,7 @@ pipe.add_step(
 )
 
 # =====================================================
-# Register
+# Register (Cache - registration logic cố định)
 # =====================================================
 
 pipe.add_step(
@@ -146,15 +149,16 @@ pipe.add_step(
         "General/evaluate_task_id": "${evaluate.id}",
     },
     execution_queue=CPU_QUEUE,
+    cache_executed_step=True,  # ✅ Cache - logic cố định
 )
 
 # =====================================================
-# Explainability
+# Explainability (Cache - SHAP analysis cố định)
 # =====================================================
 
 pipe.add_step(
     name="explain_model",
-    parents=["train", "feature"],  # ✅ Thêm "feature"
+    parents=["register"],  # ✅ Phụ thuộc register để chắc chắn nó hoàn thành
     base_task_id=TEMPLATE_EXPLAIN_ID,
     parameter_override={
         "General/feature_task_id": "${feature.id}",
@@ -162,11 +166,11 @@ pipe.add_step(
         "General/n_samples": N_SHAP_SAMPLES,
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,
+    cache_executed_step=True,  # ✅ Cache - SHAP cố định
 )
 
 # =====================================================
-# Compare Champion
+# Compare Champion (Cache - so sánh logic cố định)
 # =====================================================
 
 pipe.add_step(
@@ -177,10 +181,11 @@ pipe.add_step(
         "General/register_task_id": "${register.id}",
     },
     execution_queue=CPU_QUEUE,
+    cache_executed_step=True,  # ✅ Cache - logic cố định
 )
 
 # =====================================================
-# Promote Champion
+# Promote Champion (Cache - promotion logic cố định)
 # =====================================================
 
 pipe.add_step(
@@ -191,6 +196,23 @@ pipe.add_step(
         "General/compare_task_id": "${compare_champion.id}",
     },
     execution_queue=CPU_QUEUE,
+    cache_executed_step=True,  # ✅ Cache - logic cố định
 )
 
+# =====================================================
+# CÓ LẺ: FIX QUAN TRỌNG - Ensure pipeline is properly registered
+# =====================================================
+
+# Flush trước khi start
+pipe.task.flush()
+
+# Start pipeline
 pipe.start()
+
+# Log với thêm thông tin
+print("✅ Training Pipeline started with caching enabled")
+print(f"   Task ID: {pipe.task.id}")
+print(f"   Project: {pipe.task.project}")
+print(
+    f"   UI URL: http://192.168.140.248:8080/projects/{pipe.task.project_id}/experiments/{pipe.task.id}/output/log"
+)

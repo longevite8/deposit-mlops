@@ -1,4 +1,5 @@
 from clearml import PipelineController
+
 from config import (
     PROJECT_PIPELINE,
     CPU_QUEUE,
@@ -21,22 +22,24 @@ pipe = PipelineController(
     version=DEPLOYMENT_VERSION,
 )
 
+# Thêm tags để ClearML nhận diện đây là Pipeline
+pipe.task.add_tags(["pipeline", "production", "automated"])
+
 pipe.set_default_execution_queue(SERVICES_QUEUE)
 
 # =====================================================
-# Extract
+# Extract (KHÔNG cache - data mới mỗi ngày)
 # =====================================================
 
 pipe.add_step(
     name="extract",
     base_task_id=TEMPLATE_EXTRACT_ID,
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,
+    cache_executed_step=False,  # ✅ KHÔNG cache - data thay đổi mỗi ngày
 )
 
-
 # =====================================================
-# Feature
+# Feature (Cache - nhưng tuỳ ngữ cảnh)
 # =====================================================
 
 pipe.add_step(
@@ -47,11 +50,11 @@ pipe.add_step(
     parameter_override={
         "General/extract_task_id": "${extract.id}",
     },
-    cache_executed_step=True,
+    cache_executed_step=False,  # ✅ KHÔNG cache - phụ thuộc extract mới
 )
 
 # =====================================================
-# Drift Detection
+# Drift Detection (KHÔNG cache - so sánh mới mỗi lần)
 # =====================================================
 
 pipe.add_step(
@@ -62,35 +65,31 @@ pipe.add_step(
     parameter_override={
         "General/feature_task_id": "${feature.id}",
     },
+    cache_executed_step=False,  # ✅ KHÔNG cache - so sánh thay đổi
 )
 
-
 # =====================================================
-# Inference
+# Inference (KHÔNG cache - predictions mới mỗi lần)
 # =====================================================
 
 pipe.add_step(
     name="inference",
-    parents=[
-        "feature",
-    ],
+    parents=["feature"],
     base_task_id=TEMPLATE_INFERENCE_ID,
     execution_queue=CPU_QUEUE,
     parameter_override={
-        "General/feature_task_id": "${feature.id}",
+        "General/feature_task_id": "${feature.id}",  # ✅ ĐÃ CÓ
     },
+    cache_executed_step=False,  # ✅ KHÔNG cache - predictions mới
 )
 
 # =====================================================
-# Monitoring
+# Monitoring (KHÔNG cache - metrics monitoring thay đổi)
 # =====================================================
 
 pipe.add_step(
     name="monitoring",
-    parents=[
-        "inference",
-        "drift",
-    ],
+    parents=["inference", "drift"],
     base_task_id=TEMPLATE_MONITORING_ID,
     execution_queue=CPU_QUEUE,
     parameter_override={
@@ -104,39 +103,53 @@ pipe.add_step(
         ("drift_ratio", "drift_ratio"),
         ("need_retraining", "need_retraining"),
     ],
+    cache_executed_step=False,  # ✅ KHÔNG cache - metrics mới
 )
 
 # =====================================================
-# Alerting
+# Alerting (KHÔNG cache - quyết định alert mới mỗi lần)
 # =====================================================
 
 pipe.add_step(
     name="alerting",
-    parents=[
-        "monitoring",
-    ],
+    parents=["monitoring"],
     base_task_id=TEMPLATE_ALERTING_ID,
     execution_queue=CPU_QUEUE,
     parameter_override={
         "General/monitoring_task_id": "${monitoring.id}",
     },
+    cache_executed_step=False,  # ✅ KHÔNG cache - alert thay đổi
 )
 
-
 # =====================================================
-# Auto retrain
+# Auto Retraining (KHÔNG cache - quyết định retraining mới)
 # =====================================================
 
 pipe.add_step(
     name="auto_retraining",
-    parents=[
-        "alerting",
-    ],
+    parents=["alerting"],
     base_task_id=TEMPLATE_AUTO_RETRAINING_ID,
     execution_queue=CPU_QUEUE,
     parameter_override={
         "General/alert_task_id": "${alerting.id}",
     },
+    cache_executed_step=False,  # ✅ KHÔNG cache - retraining decision thay đổi
 )
 
+# =====================================================
+# FIX: Ensure pipeline is properly registered
+# =====================================================
+
+# Flush trước khi start
+pipe.task.flush()
+
+# Start pipeline
 pipe.start()
+
+# Log với thêm thông tin
+print("✅ Production Pipeline started")
+print(f"   Task ID: {pipe.task.id}")
+print(f"   Project: {pipe.task.project}")
+print(
+    f"   UI URL: http://192.168.140.248:8080/projects/{pipe.task.project_id}/experiments/{pipe.task.id}/output/log"
+)

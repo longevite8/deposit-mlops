@@ -108,6 +108,12 @@ except Exception as e:
     task.get_logger().report_text(f"✅ Using existing dataset: {dataset.id}")
 
 # =====================================================
+# QUAN TRỌNG: Flush task trước khi upload artifact
+# =====================================================
+
+task.flush()
+
+# =====================================================
 # Upload artifact
 # =====================================================
 

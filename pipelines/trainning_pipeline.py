@@ -20,14 +20,13 @@ from config import (
     TRAINING_PIPELINE_NAME,
     DEPLOYMENT_VERSION,
     N_SHAP_SAMPLES,
-    CLEARML_SERVER_URL,  # ← THÊM IMPORT NÀY
+    CLEARML_SERVER_URL,
 )
 
 # =====================================================
 # IMPORTANT: Phát hiện chế độ chạy (manual vs automated)
 # =====================================================
 
-# Cách 1: Check xem có parent task (auto-retraining) không
 parent_task_id = None
 is_automated = False
 try:
@@ -56,7 +55,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
     name=TRAINING_PIPELINE_NAME,
-    version=DEPLOYMENT_VERSION,  # ✅ Sử dụng DEPLOYMENT_VERSION từ config (không hardcode)
+    version=DEPLOYMENT_VERSION,
 )
 
 # SỬA: Thêm tags khác biệt dựa trên chế độ chạy
@@ -66,7 +65,7 @@ if is_automated:
         [
             "pipeline",
             "training",
-            "automated",  # ← TỰ ĐỘNG
+            "automated",
             f"run_{timestamp}",
             "triggered_by_alerting",
         ]
@@ -78,15 +77,15 @@ else:
         [
             "pipeline",
             "training",
-            "manual",  # ← BỎ TÁY
+            "manual",
             f"run_{timestamp}",
             "started_by_user",
         ]
     )
     run_description = "Manual Training Pipeline (user-initiated)"
 
-# Thêm description với thông tin chi tiết
-pipe.task.set_description(
+# SỬA: Dùng set_comment() thay vì set_description()
+pipe.task.set_comment(
     f"{run_description}\nTimestamp: {timestamp}\nRun Mode: {run_mode.upper()}"
 )
 
@@ -100,7 +99,7 @@ pipe.add_step(
     name="extract",
     base_task_id=TEMPLATE_EXTRACT_ID,
     execution_queue=CPU_QUEUE,
-    cache_executed_step=False,  # ✅ KHÔNG cache vì source data thay đổi
+    cache_executed_step=False,
 )
 
 # =====================================================
@@ -115,7 +114,7 @@ pipe.add_step(
         "General/extract_task_id": "${extract.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache vì output cố định từ extract
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -128,7 +127,7 @@ pipe.add_step(
     base_task_id=TEMPLATE_VALIDATE_ID,
     parameter_override={"General/feature_task_id": "${feature.id}"},
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache - rules không đổi
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -137,11 +136,11 @@ pipe.add_step(
 
 pipe.add_step(
     name="drift",
-    parents=["validate"],  # ✅ Chỉ phụ thuộc validate
+    parents=["validate"],
     base_task_id=TEMPLATE_DRIFT_ID,
     parameter_override={"General/feature_task_id": "${feature.id}"},
     execution_queue=CPU_QUEUE,
-    cache_executed_step=False,  # ✅ KHÔNG cache - so sánh data thay đổi
+    cache_executed_step=False,
 )
 
 # =====================================================
@@ -150,11 +149,11 @@ pipe.add_step(
 
 pipe.add_step(
     name="hpo",
-    parents=["drift"],  # ✅ Chỉ phụ thuộc drift
+    parents=["drift"],
     base_task_id=TEMPLATE_HPO_ID,
     parameter_override={"General/feature_task_id": "${feature.id}"},
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache - hyperparameters cố định
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -163,14 +162,14 @@ pipe.add_step(
 
 pipe.add_step(
     name="train",
-    parents=["hpo"],  # ✅ Chỉ phụ thuộc hpo
+    parents=["hpo"],
     base_task_id=TEMPLATE_TRAIN_ID,
     parameter_override={
         "General/feature_task_id": "${feature.id}",
         "General/hpo_task_id": "${hpo.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache - model cố định
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -179,14 +178,14 @@ pipe.add_step(
 
 pipe.add_step(
     name="evaluate",
-    parents=["train"],  # ✅ Chỉ phụ thuộc train
+    parents=["train"],
     base_task_id=TEMPLATE_EVALUATE_ID,
     parameter_override={
         "General/feature_task_id": "${feature.id}",
         "General/train_task_id": "${train.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache - metrics cố định
+    cache_executed_step=True,
     monitor_metrics=[
         ("MAPE", "mape"),
         ("R2", "r2"),
@@ -206,7 +205,7 @@ pipe.add_step(
         "General/evaluate_task_id": "${evaluate.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache - logic cố định
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -215,7 +214,7 @@ pipe.add_step(
 
 pipe.add_step(
     name="explain_model",
-    parents=["register"],  # ✅ Phụ thuộc register để chắc chắn nó hoàn thành
+    parents=["register"],
     base_task_id=TEMPLATE_EXPLAIN_ID,
     parameter_override={
         "General/feature_task_id": "${feature.id}",
@@ -223,7 +222,7 @@ pipe.add_step(
         "General/n_samples": N_SHAP_SAMPLES,
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache - SHAP cố định
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -238,7 +237,7 @@ pipe.add_step(
         "General/register_task_id": "${register.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache - logic cố định
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -253,7 +252,7 @@ pipe.add_step(
         "General/compare_task_id": "${compare_champion.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=True,  # ✅ Cache - logic cố định
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -276,11 +275,10 @@ print("=" * 70)
 print(f"   Task ID: {pipe.task.id}")
 print(f"   Project: {pipe.task.project}")
 print(f"   Pipeline Name: {TRAINING_PIPELINE_NAME}")
-print(f"   Version: {DEPLOYMENT_VERSION}")  # ✅ Dùng biến từ config
+print(f"   Version: {DEPLOYMENT_VERSION}")
 print(f"   Timestamp: {timestamp}")
 print(f"   Run Mode: {run_mode.upper()}")
 print(f"   Tags: {pipe.task.get_tags()}")
-print(f"   Description: {run_description}")
-# SỬA: Dùng CLEARML_SERVER_URL từ config (lấy từ env var)
+print(f"   Comment: {run_description}")
 print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipe.task.id}")
 print("=" * 70)

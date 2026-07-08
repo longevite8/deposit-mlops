@@ -15,11 +15,14 @@ from config import (
     PRODUCTION_PIPELINE_NAME,
 )
 
+# =====================================================
+# IMPORTANT: Production Pipeline giữ version cố định
+# =====================================================
 
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
     name=PRODUCTION_PIPELINE_NAME,
-    version=DEPLOYMENT_VERSION,
+    version=DEPLOYMENT_VERSION,  # ✅ Version cố định để dễ nhận diện
 )
 
 # Thêm tags để ClearML nhận diện đây là Pipeline
@@ -146,16 +149,16 @@ pipe.task.flush()
 # Start pipeline
 pipe.start()
 
-# Log với thêm thông tin
+# =====================================================
+# Log với thêm thông tin chi tiết
+# =====================================================
+
+print("=" * 70)
 print("✅ Production Pipeline started")
+print("=" * 70)
 print(f"   Task ID: {pipe.task.id}")
 print(f"   Project: {pipe.task.project}")
-# SỬA: Dùng get_project_id() hoặc bỏ project_id
-try:
-    project_id = pipe.task.get_project_id()
-    print(
-        f"   UI URL: http://192.168.140.248:8080/projects/{project_id}/experiments/{pipe.task.id}/output/log"
-    )
-except Exception:
-    # Nếu get_project_id() fail, dùng project name
-    print(f"   UI URL: http://192.168.140.248:8080/tasks/{pipe.task.id}")
+print(f"   Pipeline Name: {PRODUCTION_PIPELINE_NAME}")
+print(f"   Version: {DEPLOYMENT_VERSION}")
+print(f"   UI URL: http://192.168.140.248:8080/tasks/{pipe.task.id}")
+print("=" * 70)

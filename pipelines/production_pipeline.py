@@ -14,7 +14,7 @@ from config import (
     TEMPLATE_AUTO_RETRAINING_ID,
     DEPLOYMENT_VERSION,
     PRODUCTION_PIPELINE_NAME,
-    CLEARML_SERVER_URL,  # ← THÊM IMPORT NÀY
+    CLEARML_SERVER_URL,
 )
 
 # =====================================================
@@ -26,7 +26,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
     name=PRODUCTION_PIPELINE_NAME,
-    version=DEPLOYMENT_VERSION,  # ✅ Sử dụng DEPLOYMENT_VERSION từ config (không hardcode)
+    version=DEPLOYMENT_VERSION,
 )
 
 # Thêm tags để ClearML nhận diện đây là Pipeline
@@ -39,7 +39,8 @@ pipe.task.add_tags(
     ]
 )
 
-pipe.task.set_description(f"Production Pipeline (automated)\nTimestamp: {timestamp}")
+# SỬA: Dùng set_comment() thay vì set_description()
+pipe.task.set_comment(f"Production Pipeline (automated)\nTimestamp: {timestamp}")
 
 pipe.set_default_execution_queue(SERVICES_QUEUE)
 
@@ -94,7 +95,7 @@ pipe.add_step(
     base_task_id=TEMPLATE_INFERENCE_ID,
     execution_queue=CPU_QUEUE,
     parameter_override={
-        "General/feature_task_id": "${feature.id}",  # ✅ ĐÃ CÓ
+        "General/feature_task_id": "${feature.id}",
     },
     cache_executed_step=False,  # ✅ KHÔNG cache - predictions mới
 )
@@ -172,8 +173,7 @@ print("=" * 70)
 print(f"   Task ID: {pipe.task.id}")
 print(f"   Project: {pipe.task.project}")
 print(f"   Pipeline Name: {PRODUCTION_PIPELINE_NAME}")
-print(f"   Version: {DEPLOYMENT_VERSION}")  # ✅ Dùng biến từ config
+print(f"   Version: {DEPLOYMENT_VERSION}")
 print(f"   Timestamp: {timestamp}")
-# SỬA: Dùng CLEARML_SERVER_URL từ config (lấy từ env var)
 print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipe.task.id}")
 print("=" * 70)

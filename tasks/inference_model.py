@@ -40,19 +40,17 @@ params = task.connect(
 
 if not params["feature_task_id"]:
     task.get_logger().report_text("Template creation mode.")
-
     task.close()
-
     raise SystemExit(0)
 
 
 # =====================================================
-# Load feature dataset
+# Load feature dataset - Với error handling tốt hơn
 # =====================================================
 
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
+# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
 feature_dataset_id = wait_for_artifact(
     feature_task,
     "feature_dataset_id",
@@ -61,13 +59,72 @@ feature_dataset_id = wait_for_artifact(
     logger_obj=task,
 )
 
-feature_dataset = Dataset.get(
-    dataset_id=feature_dataset_id,
-)
+task.get_logger().report_text(f"✅ Feature Dataset ID: {feature_dataset_id}")
+
+# SỬA: Thêm error handling để debug
+try:
+    feature_dataset = Dataset.get(
+        dataset_id=feature_dataset_id,
+    )
+    task.get_logger().report_text(
+        f"✅ Dataset loaded successfully: {feature_dataset.id}"
+    )
+except ValueError as e:
+    task.get_logger().report_text(
+        f"❌ Error loading dataset: {str(e)}\n"
+        f"   Feature Dataset ID: {feature_dataset_id}\n"
+        f"   Attempting to get dataset from feature task artifacts...",
+        level="error",
+    )
+
+    # SỬA: Thử lấy dataset từ feature task artifacts
+    try:
+        # Lấy tất cả artifacts của feature task
+        feature_task_artifacts = feature_task.artifacts
+
+        task.get_logger().report_text(
+            f"📋 Available artifacts from feature task:\n"
+            f"{', '.join([a for a in feature_task_artifacts.keys()])}"
+        )
+
+        # Thử lấy dataset ID từ artifact với tên khác
+        if "feature_dataset_id" in feature_task_artifacts:
+            feature_dataset_id = feature_task_artifacts["feature_dataset_id"].get()
+            task.get_logger().report_text(
+                f"🔍 Retrieved feature_dataset_id: {feature_dataset_id}"
+            )
+
+        # Retry lấy dataset
+        feature_dataset = Dataset.get(
+            dataset_id=feature_dataset_id,
+        )
+        task.get_logger().report_text(
+            f"✅ Dataset loaded after retry: {feature_dataset.id}"
+        )
+    except Exception as e2:
+        task.get_logger().report_text(
+            f"❌ Failed to load dataset even after retry: {str(e2)}", level="error"
+        )
+        raise
 
 local_path = Path(feature_dataset.get_local_copy())
 
-latest_df = pd.read_parquet(local_path / "test.parquet")
+# SỬA: Check xem file parquet có tồn tại không
+parquet_file = local_path / "test.parquet"
+if not parquet_file.exists():
+    task.get_logger().report_text(
+        f"⚠️ File not found: {parquet_file}\n"
+        f"Available files: {list(local_path.glob('*'))}",
+        level="warning",
+    )
+    # Thử tìm parquet file khác
+    parquet_files = list(local_path.glob("*.parquet"))
+    if parquet_files:
+        parquet_file = parquet_files[0]
+        task.get_logger().report_text(f"📌 Using parquet file: {parquet_file}")
+
+latest_df = pd.read_parquet(parquet_file)
+task.get_logger().report_text(f"✅ Loaded {len(latest_df)} rows from feature dataset")
 
 # =====================================================
 # Load model
@@ -83,13 +140,13 @@ if len(champion_models) == 0:
     raise ValueError("No champion model found.")
 
 champion_model = champion_models[0]
+task.get_logger().report_text(f"✅ Loaded champion model: {champion_model.id}")
 
 model_path = champion_model.get_local_copy()
 
 model = joblib.load(
     model_path,
 )
-
 
 # =====================================================
 # Predict
@@ -102,15 +159,16 @@ prediction = model.predict(X)
 inference_time = time.time() - start_time
 inference_latency_ms = (inference_time / len(X)) * 1000  # ms per sample
 
+task.get_logger().report_text(
+    f"✅ Inference completed: {len(X)} samples in {inference_time:.4f}s"
+)
 
 # =====================================================
 # Build prediction dataframe
 # =====================================================
 
 prediction_df = latest_df.copy()
-
 prediction_df["prediction"] = prediction
-
 
 # =====================================================
 # Upload artifact
@@ -170,7 +228,7 @@ task.get_logger().report_table(
     title="Prediction",
     series="prediction_df",
     iteration=0,
-    table_plot=prediction_df.head(100),  # Hiển thị top 100 rows
+    table_plot=prediction_df.head(100),
 )
 
 # Prediction statistics

@@ -1,4 +1,5 @@
 from clearml.automation import PipelineController
+from datetime import datetime
 
 from config import (
     PROJECT_PIPELINE,
@@ -21,13 +22,17 @@ from config import (
 )
 
 # =====================================================
-# IMPORTANT: Đảm bảo pipeline được nhận diện đúng cách
+# IMPORTANT: Thêm timestamp động để tránh version conflict
 # =====================================================
+
+# SỬA: Tạo version động với timestamp
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+pipeline_version = f"{DEPLOYMENT_VERSION}_{timestamp}"
 
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
     name=TRAINING_PIPELINE_NAME,
-    version=DEPLOYMENT_VERSION,
+    version=pipeline_version,  # ✅ Version giờ là "v1_20240115_143022"
 )
 
 # Thêm tags để ClearML nhận diện đây là Pipeline
@@ -209,16 +214,17 @@ pipe.task.flush()
 # Start pipeline
 pipe.start()
 
-# Log với thêm thông tin
+# =====================================================
+# Log với thêm thông tin chi tiết
+# =====================================================
+
+print("=" * 70)
 print("✅ Training Pipeline started with caching enabled")
+print("=" * 70)
 print(f"   Task ID: {pipe.task.id}")
 print(f"   Project: {pipe.task.project}")
-# SỬA: Dùng get_project_id() hoặc bỏ project_id
-try:
-    project_id = pipe.task.get_project_id()
-    print(
-        f"   UI URL: http://192.168.140.248:8080/projects/{project_id}/experiments/{pipe.task.id}/output/log"
-    )
-except Exception:
-    # Nếu get_project_id() fail, dùng project name
-    print(f"   UI URL: http://192.168.140.248:8080/tasks/{pipe.task.id}")
+print(f"   Pipeline Name: {TRAINING_PIPELINE_NAME}")
+print(f"   Version: {pipeline_version}")
+print(f"   Timestamp: {timestamp}")
+print(f"   UI URL: http://192.168.140.248:8080/tasks/{pipe.task.id}")
+print("=" * 70)

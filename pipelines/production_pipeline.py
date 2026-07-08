@@ -1,5 +1,6 @@
 from clearml import PipelineController
 from datetime import datetime
+import time
 
 from config import (
     PROJECT_PIPELINE,
@@ -52,7 +53,7 @@ pipe.add_step(
     name="extract",
     base_task_id=TEMPLATE_EXTRACT_ID,
     execution_queue=CPU_QUEUE,
-    cache_executed_step=False,  # ✅ KHÔNG cache - data thay đổi mỗi ngày
+    cache_executed_step=False,
 )
 
 # =====================================================
@@ -67,7 +68,7 @@ pipe.add_step(
     parameter_override={
         "General/extract_task_id": "${extract.id}",
     },
-    cache_executed_step=False,  # ✅ KHÔNG cache - phụ thuộc extract mới
+    cache_executed_step=False,
 )
 
 # =====================================================
@@ -82,7 +83,7 @@ pipe.add_step(
     parameter_override={
         "General/feature_task_id": "${feature.id}",
     },
-    cache_executed_step=False,  # ✅ KHÔNG cache - so sánh thay đổi
+    cache_executed_step=False,
 )
 
 # =====================================================
@@ -97,7 +98,7 @@ pipe.add_step(
     parameter_override={
         "General/feature_task_id": "${feature.id}",
     },
-    cache_executed_step=False,  # ✅ KHÔNG cache - predictions mới
+    cache_executed_step=False,
 )
 
 # =====================================================
@@ -120,7 +121,7 @@ pipe.add_step(
         ("drift_ratio", "drift_ratio"),
         ("need_retraining", "need_retraining"),
     ],
-    cache_executed_step=False,  # ✅ KHÔNG cache - metrics mới
+    cache_executed_step=False,
 )
 
 # =====================================================
@@ -135,7 +136,7 @@ pipe.add_step(
     parameter_override={
         "General/monitoring_task_id": "${monitoring.id}",
     },
-    cache_executed_step=False,  # ✅ KHÔNG cache - alert thay đổi
+    cache_executed_step=False,
 )
 
 # =====================================================
@@ -150,30 +151,80 @@ pipe.add_step(
     parameter_override={
         "General/alert_task_id": "${alerting.id}",
     },
-    cache_executed_step=False,  # ✅ KHÔNG cache - retraining decision thay đổi
+    cache_executed_step=False,
 )
 
 # =====================================================
-# FIX: Ensure pipeline is properly registered
+# FIX QUAN TRỌNG - Ensure pipeline is properly registered
 # =====================================================
 
 # Flush trước khi start
 pipe.task.flush()
 
+print("=" * 70)
+print("📌 Starting Production Pipeline...")
+print("=" * 70)
+
 # Start pipeline
 pipe.start()
 
-# =====================================================
-# Log với thêm thông tin chi tiết
-# =====================================================
+pipeline_id = pipe.task.id
 
 print("=" * 70)
 print("✅ Production Pipeline started")
 print("=" * 70)
-print(f"   Task ID: {pipe.task.id}")
+print(f"   Task ID: {pipeline_id}")
 print(f"   Project: {pipe.task.project}")
 print(f"   Pipeline Name: {PRODUCTION_PIPELINE_NAME}")
 print(f"   Version: {DEPLOYMENT_VERSION}")
 print(f"   Timestamp: {timestamp}")
-print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipe.task.id}")
+print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipeline_id}")
+print("=" * 70)
+
+# =====================================================
+# QUAN TRỌNG: Keep task alive để ClearML UI update status
+# =====================================================
+
+# Chờ pipeline bắt đầu chạy (tối đa 30 giây)
+max_wait_time = 30
+wait_interval = 2
+elapsed_time = 0
+
+print(f"\n⏳ Waiting for pipeline to start (max {max_wait_time}s)...")
+
+while elapsed_time < max_wait_time:
+    try:
+        # Lấy status của pipeline
+        from clearml import Task
+
+        current_pipeline_task = Task.get_task(task_id=pipeline_id)
+        pipeline_status = current_pipeline_task.get_status()
+
+        print(f"   Pipeline status: {pipeline_status}")
+
+        if pipeline_status not in ["created", "queued", "in_progress"]:
+            print(f"✅ Pipeline status confirmed: {pipeline_status}")
+            break
+
+        time.sleep(wait_interval)
+        elapsed_time += wait_interval
+
+    except Exception as e:
+        print(f"⚠️ Could not fetch pipeline status: {str(e)}")
+        time.sleep(wait_interval)
+        elapsed_time += wait_interval
+
+# =====================================================
+# Final flush để đảm bảo task được lưu trữ đầy đủ
+# =====================================================
+
+print("\n📤 Finalizing task...")
+pipe.task.flush()
+pipe.task.close()
+
+print("=" * 70)
+print("✅ Production Pipeline configuration completed successfully!")
+print("=" * 70)
+print("   Pipeline will continue running in background")
+print(f"   Monitor progress at: {CLEARML_SERVER_URL}/tasks/{pipeline_id}")
 print("=" * 70)

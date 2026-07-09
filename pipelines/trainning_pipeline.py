@@ -29,12 +29,12 @@ pipe = PipelineController(
     name=TRAINING_PIPELINE_NAME,
     version=DEPLOYMENT_VERSION,
 )
-# Thêm tags để ClearML nhận diện đây là Pipeline
-pipe.task.add_tags(
+
+pipe.task.set_tags(
     [
         "pipeline",
         "training",
-        "manual",
+        "manual",  # ← MANUAL tag (khi chạy bằng tay)
     ]
 )
 

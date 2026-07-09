@@ -1,6 +1,5 @@
 from clearml.automation import PipelineController
 from datetime import datetime
-import os
 import time
 
 from config import (
@@ -24,66 +23,23 @@ from config import (
     CLEARML_SERVER_URL,
 )
 
-# =====================================================
-# IMPORTANT: Phát hiện chế độ chạy (manual vs automated)
-# =====================================================
-
-parent_task_id = None
-is_automated = False
-try:
-    from clearml import Task
-
-    current_task = Task.current_task()
-    if current_task:
-        parent_task_id = current_task.id
-        is_automated = True
-except Exception:
-    pass
-
-# Cách 2: Hoặc check từ environment variable
-if not is_automated:
-    is_automated = os.getenv("CLEARML_AUTO_RETRAINING", "false").lower() == "true"
-
-# Phát hiện chế độ
-run_mode = "automated" if is_automated else "manual"
-
-# =====================================================
-# Tạo version semantic cố định + timestamp
-# =====================================================
-
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
     name=TRAINING_PIPELINE_NAME,
     version=DEPLOYMENT_VERSION,
 )
+# Thêm tags để ClearML nhận diện đây là Pipeline
+pipe.task.add_tags(
+    [
+        "pipeline",
+        "training",
+        "manual",
+    ]
+)
 
-# SỬA: Thêm tags khác biệt dựa trên chế độ chạy
-if is_automated:
-    # Tags cho lần chạy tự động (triggered by auto-retraining)
-    pipe.task.add_tags(
-        [
-            "pipeline",
-            "training",
-            "automated",
-        ]
-    )
-    run_description = "Auto-triggered Training Pipeline (by auto-retraining task)"
-else:
-    # Tags cho lần chạy bằng tay (manual)
-    pipe.task.add_tags(
-        [
-            "pipeline",
-            "training",
-            "manual",
-        ]
-    )
-    run_description = "Manual Training Pipeline (user-initiated)"
-
-# SỬA: Dùng set_comment() thay vì set_description()
 pipe.task.set_comment(
-    f"{run_description}\nTimestamp: {timestamp}\nRun Mode: {run_mode.upper()}"
+    f"Manual Training Pipeline (user-initiated)\nTimestamp: {timestamp}\nRun Mode: Manual"
 )
 
 pipe.set_default_execution_queue(SERVICES_QUEUE)
@@ -259,28 +215,11 @@ pipe.add_step(
 # Flush trước khi start
 pipe.task.flush()
 
-print("=" * 70)
-print(f"📌 Starting Training Pipeline ({run_mode.upper()})...")
-print("=" * 70)
-
 # Start pipeline
 pipe.start()
 
 pipeline_id = pipe.task.id
 
-print("=" * 70)
-print(f"✅ Training Pipeline started ({run_mode.upper()})")
-print("=" * 70)
-print(f"   Task ID: {pipeline_id}")
-print(f"   Project: {pipe.task.project}")
-print(f"   Pipeline Name: {TRAINING_PIPELINE_NAME}")
-print(f"   Version: {DEPLOYMENT_VERSION}")
-print(f"   Timestamp: {timestamp}")
-print(f"   Run Mode: {run_mode.upper()}")
-print(f"   Tags: {pipe.task.get_tags()}")
-print(f"   Comment: {run_description}")
-print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipeline_id}")
-print("=" * 70)
 
 # =====================================================
 # QUAN TRỌNG: Keep task alive để ClearML UI update status

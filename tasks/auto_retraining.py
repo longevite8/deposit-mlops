@@ -93,13 +93,18 @@ new_pipeline.set_parameters(
     }
 )
 
-# new_pipeline.set_tags(
-#     [
-#         "pipeline:training",
-#         "trigger:auto_retraining",
-#         f"model:{alert_lineage.get('model_id', 'unknown')}",
-#     ]
-# )
+new_pipeline.set_tags(
+    [
+        "pipeline",
+        "training",
+        "automated",
+    ]
+)
+
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+new_pipeline.task.set_comment(
+    f"Automated Training Pipeline (by Trigger)\nTimestamp: {timestamp}\nRun Mode: Automated"
+)
 
 # Enqueue to Services Queue (thường dùng cho pipeline controllers)
 Task.enqueue(
@@ -117,7 +122,7 @@ retraining_summary = {
     "reason": alert_summary.get("reason"),
     "model_id": alert_lineage.get("model_id"),
     "feature_dataset_id": alert_lineage.get("feature_dataset_id"),
-    "timestamp": str(datetime.now()),
+    "timestamp": timestamp,
 }
 
 retraining_lineage = {

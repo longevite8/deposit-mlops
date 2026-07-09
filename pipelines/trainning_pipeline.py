@@ -34,7 +34,7 @@ pipe.task.set_tags(
     [
         "pipeline",
         "training",
-        "manual",  # ← MANUAL tag (khi chạy bằng tay)
+        "manual",  # ← MANUAL tag (khi chạy bằy tay)
     ]
 )
 
@@ -215,11 +215,24 @@ pipe.add_step(
 # Flush trước khi start
 pipe.task.flush()
 
+print("=" * 70)
+print("📌 Starting Training Pipeline...")
+print("=" * 70)
+
 # Start pipeline
 pipe.start()
 
 pipeline_id = pipe.task.id
 
+print("=" * 70)
+print("✅ Training Pipeline started")
+print("=" * 70)
+print(f"   Task ID: {pipeline_id}")
+print(f"   Pipeline Name: {TRAINING_PIPELINE_NAME}")
+print(f"   Version: {DEPLOYMENT_VERSION}")
+print(f"   Timestamp: {timestamp}")
+print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipeline_id}")
+print("=" * 70)
 
 # =====================================================
 # QUAN TRỌNG: Keep task alive để ClearML UI update status
@@ -229,6 +242,7 @@ pipeline_id = pipe.task.id
 max_wait_time = 30
 wait_interval = 2
 elapsed_time = 0
+status_confirmed = False
 
 print(f"\n⏳ Waiting for pipeline to start (max {max_wait_time}s)...")
 
@@ -244,6 +258,7 @@ while elapsed_time < max_wait_time:
 
         if pipeline_status not in ["created", "queued"]:
             print(f"✅ Pipeline status confirmed: {pipeline_status}")
+            status_confirmed = True
             break
 
         time.sleep(wait_interval)
@@ -255,12 +270,18 @@ while elapsed_time < max_wait_time:
         elapsed_time += wait_interval
 
 # =====================================================
-# Final flush để đảm bảo task được lưu trữ đầy đủ
+# SỬA: KHÔNG gọi close() ngay!
+# Chỉ flush() để ghi final state
 # =====================================================
 
 print("\n📤 Finalizing task...")
+
+# Final flush để đảm bảo final state được lưu
 pipe.task.flush()
-pipe.task.close()
+
+# ⭐ QUAN TRỌNG: KHÔNG gọi close()!
+# Để task tự động close sau khi hoàn thành
+# Điều này giữ pipeline vẫn hiển thị trên UI
 
 print("=" * 70)
 print("✅ Training Pipeline configuration completed successfully!")
@@ -268,3 +289,5 @@ print("=" * 70)
 print("   Pipeline will continue running in background")
 print(f"   Monitor progress at: {CLEARML_SERVER_URL}/tasks/{pipeline_id}")
 print("=" * 70)
+
+# Script kết thúc ở đây - task vẫn sống (không close)

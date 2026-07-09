@@ -218,12 +218,18 @@ while elapsed_time < max_wait_time:
         elapsed_time += wait_interval
 
 # =====================================================
-# Final flush để đảm bảo task được lưu trữ đầy đủ
+# SỬA: KHÔNG gọi close() ngay!
+# Chỉ flush() để ghi final state
 # =====================================================
 
 print("\n📤 Finalizing task...")
+
+# Final flush để đảm bảo final state được lưu
 pipe.task.flush()
-pipe.task.close()
+
+# ⭐ QUAN TRỌNG: KHÔNG gọi close()!
+# Để task tự động close sau khi hoàn thành
+# Điều này giữ pipeline vẫn hiển thị trên UI
 
 print("=" * 70)
 print("✅ Production Pipeline configuration completed successfully!")
@@ -231,3 +237,5 @@ print("=" * 70)
 print("   Pipeline will continue running in background")
 print(f"   Monitor progress at: {CLEARML_SERVER_URL}/tasks/{pipeline_id}")
 print("=" * 70)
+
+# Script kết thúc ở đây - task vẫn sống (không close)

@@ -26,8 +26,7 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
-    # name=PRODUCTION_PIPELINE_NAME,
-    name=f"{PRODUCTION_PIPELINE_NAME} - {datetime.now():%Y%m%d_%H%M%S}",
+    name=PRODUCTION_PIPELINE_NAME,
     version=DEPLOYMENT_VERSION,
 )
 

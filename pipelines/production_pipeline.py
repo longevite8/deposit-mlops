@@ -30,9 +30,13 @@ pipe = PipelineController(
     version=DEPLOYMENT_VERSION,
 )
 
+# =====================================================
+# SỬA: Dùng set_tags() thay vì add_tags()
+# set_tags() = REPLACE tất cả tags (xoá cũ, set mới)
+# add_tags() = THÊM vào cũ (không xoá cũ) ← AVOID!
+# =====================================================
 
-# Thêm tags để ClearML nhận diện đây là Pipeline
-pipe.task.add_tags(
+pipe.task.set_tags(
     [
         "pipeline",
         "production",

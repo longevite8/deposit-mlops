@@ -44,7 +44,6 @@ if not params["alert_task_id"]:
 
 alert_task = Task.get_task(task_id=params["alert_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
 alert_summary = wait_for_artifact(
     alert_task,
     "alert_summary",
@@ -99,9 +98,15 @@ new_pipeline.set_parameters(
 )
 
 # =====================================================
-# SỬA: Dùng set_tags() để REPLACE tags (không phải add_tags)
+# SỬA: Remove old tags TRƯỚC set_tags() để chắc chắn replace
 # =====================================================
 
+# Xoá tất cả tags cũ trước
+old_tags = new_pipeline.get_tags()
+if old_tags:
+    new_pipeline.remove_tags(old_tags)  # ← Xoá tags cũ
+
+# Giờ set tags mới (sạch sẽ)
 new_pipeline.set_tags(
     [
         "pipeline",
@@ -120,19 +125,41 @@ new_pipeline.set_comment(
 )
 
 # =====================================================
-# SỬA: Flush 2 lần để đảm bảo tags được ghi đúng
+# SỬA: Multiple flush + longer sleep để ensure server update
 # =====================================================
 
-# First flush: Ghi tags & comment
+# Flush 1: Ghi tags & comment
 new_pipeline.flush()
-time.sleep(0.5)  # Chờ một chút
+time.sleep(1)  # ← SỬA: 0.5s → 1s
 
-# Verify tags được set đúng trước enqueue
+# Verify tags từ memory
 task.get_logger().report_text(
     f"✅ Training pipeline cloned: {new_pipeline.id}\n"
-    f"   Tags after set_tags(): {new_pipeline.get_tags()}\n"
-    f"   Expected: ['pipeline', 'training', 'automated', 'run_{timestamp}', 'triggered_by_alerting']"
+    f"   Tags in memory: {new_pipeline.get_tags()}"
 )
+
+# Flush 2: Ensure server fully sync
+new_pipeline.flush()
+time.sleep(1)  # Chờ server process
+
+# =====================================================
+# Verify tags từ server (không phải memory)
+# =====================================================
+
+try:
+    # Fetch fresh task từ server
+    server_pipeline = Task.get_task(task_id=new_pipeline.id)
+    server_tags = server_pipeline.get_tags()
+
+    task.get_logger().report_text(
+        f"✅ Tags verified from server: {server_tags}\n"
+        f"   Expected: ['pipeline', 'training', 'automated', ...]\n"
+        f"   Match: {set(server_tags) >= {'pipeline', 'training', 'automated'}}"
+    )
+except Exception as e:
+    task.get_logger().report_text(
+        f"⚠️ Could not verify tags from server: {str(e)}", level="warning"
+    )
 
 # =====================================================
 # Enqueue to Services Queue
@@ -151,8 +178,7 @@ task.get_logger().report_text(
 # QUAN TRỌNG: Keep task alive + Extended monitoring
 # =====================================================
 
-# Chờ training pipeline được enqueue đúng cách (tối đa 60 giây, không phải 30)
-max_wait_time = 60  # ← SỬA: 30s → 60s (đủ thời gian ClearML update)
+max_wait_time = 60
 wait_interval = 2
 elapsed_time = 0
 status_confirmed = False
@@ -167,12 +193,22 @@ while elapsed_time < max_wait_time:
         training_pipeline = Task.get_task(task_id=new_pipeline.id)
         pipeline_status = training_pipeline.get_status()
 
-        # SỬA: Verify tags lại từ server (không phải từ cache)
+        # ✅ Verify tags từ server (fresh fetch)
         current_tags = training_pipeline.get_tags()
 
         task.get_logger().report_text(
             f"   Status: {pipeline_status} | Tags: {current_tags}"
         )
+
+        # Check tags có đúng không
+        expected_tags = {"pipeline", "training", "automated"}
+        tags_ok = expected_tags.issubset(set(current_tags))
+
+        if not tags_ok:
+            task.get_logger().report_text(
+                f"   ⚠️ Tags mismatch! Expected {expected_tags}, got {set(current_tags)}",
+                level="warning",
+            )
 
         # Nếu status từ queued → in_progress, nghĩa là training pipeline bắt đầu
         if pipeline_status not in ["created", "queued"]:
@@ -213,7 +249,7 @@ retraining_summary = {
     "model_id": alert_lineage.get("model_id"),
     "feature_dataset_id": alert_lineage.get("feature_dataset_id"),
     "timestamp": timestamp,
-    "status_confirmed": status_confirmed,  # ← SỬA: Add confirmation flag
+    "status_confirmed": status_confirmed,
 }
 
 retraining_lineage = {
@@ -230,7 +266,7 @@ task.upload_artifact("retraining_lineage", retraining_lineage)
 task.upload_artifact("launched_pipeline_id", new_pipeline.id)
 
 # =====================================================
-# SỬA: Final sync trước close để ensure tags được persist
+# Final sync trước close
 # =====================================================
 
 task.get_logger().report_text(
@@ -238,16 +274,13 @@ task.get_logger().report_text(
     f"   UI URL: {CLEARML_SERVER_URL}/tasks/{new_pipeline.id}"
 )
 
-# Final flush của training pipeline (not parent task)
-# để ensure tất cả metadata được persist
+# Final flush
 new_pipeline.flush()
-time.sleep(1)  # Chờ ClearML server process
+time.sleep(1)
 
 task.get_logger().report_text(
     "🏁 Task closing to release Agent for scheduled pipeline tasks."
 )
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
-
 task.close()

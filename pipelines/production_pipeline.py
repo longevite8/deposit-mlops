@@ -26,9 +26,11 @@ timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
-    name=PRODUCTION_PIPELINE_NAME,
+    # name=PRODUCTION_PIPELINE_NAME,
+    name=f"{PRODUCTION_PIPELINE_NAME} - {datetime.now():%Y%m%d_%H%M%S}",
     version=DEPLOYMENT_VERSION,
 )
+
 
 # Thêm tags để ClearML nhận diện đây là Pipeline
 pipe.task.add_tags(

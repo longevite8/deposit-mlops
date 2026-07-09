@@ -102,7 +102,7 @@ new_pipeline.set_tags(
 )
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-new_pipeline.task.set_comment(
+new_pipeline.set_comment(
     f"Automated Training Pipeline (by Trigger)\nTimestamp: {timestamp}\nRun Mode: Automated"
 )
 

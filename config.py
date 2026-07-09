@@ -219,7 +219,7 @@ TEMPLATE_ALERTING_ID = "1fbbb9278a924951a7401fba468fa622"
 TEMPLATE_AUTO_RETRAINING_ID = "c9cd357f547c4d8f8de822652bdfdfbf"
 TEMPLATE_EXPLAIN_ID = "e5c7b0b157874c60b7b79cc6a31dec00"
 
-TRAINING_PIPELINE_ID = "2a490aa28b85488fa9be0aab84487177"
+TRAINING_PIPELINE_ID = "1d5a04ecdc194351a88fa48cd76f5dea"
 # =====================================================
 # Utility Functions
 # =====================================================

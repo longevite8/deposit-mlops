@@ -7,7 +7,7 @@ from config import (
     SERVICES_QUEUE,
     TEMPLATE_AUTO_RETRAINING_NAME,
     TRAINING_PIPELINE_ID,
-    CLEARML_SERVER_URL,  # ← THÊM IMPORT
+    CLEARML_SERVER_URL,
 )
 
 from helpers import wait_for_artifact
@@ -106,7 +106,7 @@ new_pipeline.set_tags(
     [
         "pipeline",
         "training",
-        "automated",  # ← Auto triggered (không phải manual)
+        "automated",  # ← Auto triggered (KHÔNG phải manual)
         f"run_{timestamp}",
         "triggered_by_alerting",
     ]
@@ -119,12 +119,19 @@ new_pipeline.set_comment(
     f"Reason: {alert_summary.get('reason', 'Scheduled retraining')}"
 )
 
-# Flush để đảm bảo metadata được lưu
-new_pipeline.flush()
+# =====================================================
+# SỬA: Flush 2 lần để đảm bảo tags được ghi đúng
+# =====================================================
 
+# First flush: Ghi tags & comment
+new_pipeline.flush()
+time.sleep(0.5)  # Chờ một chút
+
+# Verify tags được set đúng trước enqueue
 task.get_logger().report_text(
     f"✅ Training pipeline cloned: {new_pipeline.id}\n"
-    f"   Tags: {new_pipeline.get_tags()}"
+    f"   Tags after set_tags(): {new_pipeline.get_tags()}\n"
+    f"   Expected: ['pipeline', 'training', 'automated', 'run_{timestamp}', 'triggered_by_alerting']"
 )
 
 # =====================================================
@@ -141,13 +148,14 @@ task.get_logger().report_text(
 )
 
 # =====================================================
-# QUAN TRỌNG: Keep task alive để training pipeline được confirm
+# QUAN TRỌNG: Keep task alive + Extended monitoring
 # =====================================================
 
-# Chờ training pipeline được enqueue đúng cách (tối đa 30 giây)
-max_wait_time = 30
+# Chờ training pipeline được enqueue đúng cách (tối đa 60 giây, không phải 30)
+max_wait_time = 60  # ← SỬA: 30s → 60s (đủ thời gian ClearML update)
 wait_interval = 2
 elapsed_time = 0
+status_confirmed = False
 
 task.get_logger().report_text(
     f"⏳ Waiting for training pipeline to start (max {max_wait_time}s)..."
@@ -159,13 +167,20 @@ while elapsed_time < max_wait_time:
         training_pipeline = Task.get_task(task_id=new_pipeline.id)
         pipeline_status = training_pipeline.get_status()
 
-        task.get_logger().report_text(f"   Training pipeline status: {pipeline_status}")
+        # SỬA: Verify tags lại từ server (không phải từ cache)
+        current_tags = training_pipeline.get_tags()
+
+        task.get_logger().report_text(
+            f"   Status: {pipeline_status} | Tags: {current_tags}"
+        )
 
         # Nếu status từ queued → in_progress, nghĩa là training pipeline bắt đầu
         if pipeline_status not in ["created", "queued"]:
             task.get_logger().report_text(
-                f"✅ Training pipeline status confirmed: {pipeline_status}"
+                f"✅ Training pipeline status confirmed: {pipeline_status}\n"
+                f"   Final tags: {current_tags}"
             )
+            status_confirmed = True
             break
 
         time.sleep(wait_interval)
@@ -178,6 +193,15 @@ while elapsed_time < max_wait_time:
         time.sleep(wait_interval)
         elapsed_time += wait_interval
 
+# SỬA: Log warning nếu không confirm trong thời gian cho phép
+if not status_confirmed:
+    task.get_logger().report_text(
+        f"⚠️ Training pipeline status not confirmed within {max_wait_time}s\n"
+        f"   Pipeline may be queued or have connectivity issues\n"
+        f"   Pipeline ID: {new_pipeline.id}",
+        level="warning",
+    )
+
 # =====================================================
 # Two-Artifact Lineage Pattern & Summary
 # =====================================================
@@ -189,6 +213,7 @@ retraining_summary = {
     "model_id": alert_lineage.get("model_id"),
     "feature_dataset_id": alert_lineage.get("feature_dataset_id"),
     "timestamp": timestamp,
+    "status_confirmed": status_confirmed,  # ← SỬA: Add confirmation flag
 }
 
 retraining_lineage = {
@@ -205,13 +230,19 @@ task.upload_artifact("retraining_lineage", retraining_lineage)
 task.upload_artifact("launched_pipeline_id", new_pipeline.id)
 
 # =====================================================
-# Solution 3: Release Agent Immediately
+# SỬA: Final sync trước close để ensure tags được persist
 # =====================================================
 
 task.get_logger().report_text(
     f"✅ Training pipeline launched successfully: {new_pipeline.id}\n"
     f"   UI URL: {CLEARML_SERVER_URL}/tasks/{new_pipeline.id}"
 )
+
+# Final flush của training pipeline (not parent task)
+# để ensure tất cả metadata được persist
+new_pipeline.flush()
+time.sleep(1)  # Chờ ClearML server process
+
 task.get_logger().report_text(
     "🏁 Task closing to release Agent for scheduled pipeline tasks."
 )

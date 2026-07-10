@@ -314,3 +314,20 @@ print("✅ Feature engineering completed.")
 task.flush()
 
 task.close()
+
+# =====================================================
+# Upload feature summary and lineage
+# =====================================================
+
+feature_summary = {
+    "feature_columns": FEATURE_COLUMNS,
+    "train_ratio": TRAIN_RATIO,
+    "feature_dataset_id": feature_dataset.id,
+}
+feature_lineage = {
+    "feature_task_id": task.id,
+    "extract_task_id": params["extract_task_id"],
+    "feature_dataset_id": feature_dataset.id,
+}
+task.upload_artifact("feature_summary", feature_summary)
+task.upload_artifact("feature_lineage", feature_lineage)

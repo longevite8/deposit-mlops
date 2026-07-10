@@ -242,4 +242,16 @@ print("✅ Validation passed.")
 
 task.flush()
 
+validate_summary = {
+    "status": "PASS" if passed else "FAIL",
+    "checks_performed": len(REQUIRED_COLUMNS),
+    "failed_checks": len(bad_columns) + (1 if not range_ok else 0),
+}
+validate_lineage = {
+    "validate_task_id": task.id,
+    "extract_task_id": params["extract_task_id"],
+}
+task.upload_artifact("validate_summary", validate_summary)
+task.upload_artifact("validate_lineage", validate_lineage)
+
 task.close()

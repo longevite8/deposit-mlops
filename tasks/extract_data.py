@@ -130,4 +130,14 @@ print("✅ Extract completed.")
 # THÊM: Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
 
+extract_summary = {
+    "n_rows": len(df),
+    "start_date": START_DATE,
+    "n_days": N_DAYS,
+    "dataset_id": dataset.id,
+}
+extract_lineage = {"extract_task_id": task.id, "dataset_id": dataset.id}
+task.upload_artifact("extract_summary", extract_summary)
+task.upload_artifact("extract_lineage", extract_lineage)
+
 task.close()

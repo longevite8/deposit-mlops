@@ -154,7 +154,7 @@ task.upload_artifact(
     feature_dataset_id,
 )
 
-evaluation_result = {
+evaluation_summary = {
     "Feature Dataset": feature_dataset_id,
     "Raw Dataset": raw_dataset_id,
     "mape": float(mape),
@@ -167,8 +167,8 @@ evaluation_result = {
 }
 
 task.upload_artifact(
-    "evaluation_result",
-    evaluation_result,
+    "evaluate_summary",
+    evaluation_summary,
 )
 
 evaluate_lineage = {
@@ -203,11 +203,11 @@ task.get_logger().report_single_value("r2_threshold", r2_threshold)
 
 task.get_logger().report_single_value("quality_gate_passed", int(passed))
 
-task.get_logger().report_text(f"Evaluation result = {evaluation_result}")
+task.get_logger().report_text(f"Evaluation result = {evaluation_summary}")
 
-print(evaluation_result)
+print(evaluation_summary)
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
+# Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
 
 task.close()

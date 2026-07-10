@@ -200,7 +200,7 @@ prediction_lineage = {
 }
 
 task.upload_artifact(
-    "prediction_lineage",
+    "inference_lineage",
     prediction_lineage,
 )
 
@@ -216,7 +216,7 @@ prediction_summary = {
 }
 
 task.upload_artifact(
-    "prediction_summary",
+    "inference_summary",
     prediction_summary,
 )
 

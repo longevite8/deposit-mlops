@@ -329,4 +329,18 @@ print("Training completed.")
 # THÊM: Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
 
+# =====================================================
+# Training summary & lineage
+# =====================================================
+
+train_summary = {"model_id": output_model.id, "parameters": params, "status": "SUCCESS"}
+train_lineage = {
+    "train_task_id": task.id,
+    "feature_task_id": params["feature_task_id"],
+    "hpo_task_id": params.get("hpo_task_id"),
+    "model_id": output_model.id,
+}
+task.upload_artifact("train_summary", train_summary)
+task.upload_artifact("train_lineage", train_lineage)
+
 task.close()

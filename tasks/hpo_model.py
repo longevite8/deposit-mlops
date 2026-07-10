@@ -183,9 +183,9 @@ task.upload_artifact(
 )
 
 hpo_summary = {
-    "best_mape": float(best_trial.value),
-    "n_trials": len(study.trials),
-    "best_trial_number": best_trial.number,
+    "best_params": study.best_params,
+    "best_score": study.best_value,
+    "n_trials": N_TRIALS,
 }
 
 task.upload_artifact(
@@ -195,8 +195,7 @@ task.upload_artifact(
 
 hpo_lineage = {
     "hpo_task_id": task.id,
-    "feature_task_id": feature_task.id,
-    "feature_dataset_id": feature_dataset_id,
+    "feature_task_id": params["feature_task_id"],
 }
 
 task.upload_artifact(

@@ -63,13 +63,16 @@ df = wait_for_artifact(
     logger_obj=task,
 )
 
-raw_dataset_id = wait_for_artifact(
+# SỬA: Lấy extract_summary thay vì tìm artifact raw_dataset_id riêng lẻ
+extract_summary = wait_for_artifact(
     extract_task,
-    "raw_dataset_id",
+    "extract_summary",
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
 )
+
+raw_dataset_id = extract_summary["raw_dataset_id"]
 
 try:
     # Thử lấy Dataset theo ID từ artifact

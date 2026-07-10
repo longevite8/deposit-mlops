@@ -30,16 +30,54 @@ pipe = PipelineController(
     version=DEPLOYMENT_VERSION,
 )
 
-pipe.task.set_tags(
-    [
-        "pipeline",
-        "training",
-        "manual",  # ← MANUAL tag (khi chạy bằy tay)
-    ]
-)
+# =====================================================
+# SỬA: Detect nếu được trigger từ auto_retraining hay chạy manual
+# =====================================================
+
+# Check nếu là child task của auto_retraining
+parent_task_id = None
+is_auto_triggered = False
+
+try:
+    from clearml import Task as SingleTask
+
+    current_task = SingleTask.current_task()
+    if current_task:
+        # Lấy parent task info
+        parent_task_id = current_task.parent_task_id
+        if parent_task_id:
+            is_auto_triggered = True
+except Exception:
+    # Standalone script → không có parent task
+    is_auto_triggered = False
+
+# =====================================================
+# Set tags dựa vào trigger mode
+# =====================================================
+
+if is_auto_triggered:
+    # Trigger từ auto_retraining → set "automated"
+    pipe.task.set_tags(
+        [
+            "pipeline",
+            "training",
+            "automated",  # ← Auto-triggered
+        ]
+    )
+    run_mode = "AUTOMATED (by auto_retraining)"
+else:
+    # Chạy manual (trực tiếp) → set "manual"
+    pipe.task.set_tags(
+        [
+            "pipeline",
+            "training",
+            "manual",  # ← Manual (user-initiated)
+        ]
+    )
+    run_mode = "MANUAL (user-initiated)"
 
 pipe.task.set_comment(
-    f"Manual Training Pipeline (user-initiated)\nTimestamp: {timestamp}\nRun Mode: Manual"
+    f"Training Pipeline ({run_mode})\nTimestamp: {timestamp}\nRun Mode: {run_mode}"
 )
 
 pipe.set_default_execution_queue(SERVICES_QUEUE)
@@ -217,6 +255,7 @@ pipe.task.flush()
 
 print("=" * 70)
 print("📌 Starting Training Pipeline...")
+print(f"   Run Mode: {run_mode}")
 print("=" * 70)
 
 # Start pipeline

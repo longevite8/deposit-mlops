@@ -111,9 +111,7 @@ new_pipeline.set_tags(
     [
         "pipeline",
         "training",
-        "automated",  # ← Auto triggered (KHÔNG phải manual)
-        f"run_{timestamp}",
-        "triggered_by_alerting",
+        "automated",
     ]
 )
 

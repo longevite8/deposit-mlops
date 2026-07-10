@@ -117,11 +117,6 @@ task.flush()
 # Upload artifact
 # =====================================================
 
-task.upload_artifact(
-    "raw_dataset_id",
-    dataset.id,
-)
-
 task.get_logger().report_text(f"raw_dataset_id={dataset.id}")
 
 print(df.head())
@@ -134,9 +129,12 @@ extract_summary = {
     "n_rows": len(df),
     "start_date": START_DATE,
     "n_days": N_DAYS,
-    "dataset_id": dataset.id,
+    "raw_dataset_id": dataset.id,
 }
-extract_lineage = {"extract_task_id": task.id, "dataset_id": dataset.id}
+extract_lineage = {
+    "extract_task_id": task.id,
+    "raw_dataset_id": dataset.id,
+}
 task.upload_artifact("extract_summary", extract_summary)
 task.upload_artifact("extract_lineage", extract_lineage)
 

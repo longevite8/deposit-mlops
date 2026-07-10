@@ -207,7 +207,7 @@ extract_summary = wait_for_artifact(
     wait_interval=2.0,
     logger_obj=task,
 )
-raw_dataset_id = extract_summary["dataset_id"]
+raw_dataset_id = extract_summary["raw_dataset_id"]
 
 output_model.set_metadata(
     "raw_dataset_id",

@@ -246,16 +246,11 @@ feature_lineage = {
 # Upload các chuẩn mới (Lineage & Summary)
 task.upload_artifact("feature_summary", feature_summary)
 task.upload_artifact("feature_lineage", feature_lineage)
-
-# Giữ lại các artifact cũ để tương thích với các bước đang dùng wait_for_artifact lẻ
 task.upload_artifact("feature_dataset_id", feature_dataset.id)
-task.upload_artifact("feature_dataset_info", feature_summary)
+
 
 # =====================================================
-# Công tác kết thúc: Flush -> Close (CHỈ GỌI 1 LẦN)
+# Flush -> Close
 # =====================================================
-
 task.flush()
 task.close()
-
-# XOÁ BỎ TOÀN BỘ PHẦN CODE TRÙNG LẶP PHÍA DƯỚI DÒNG NÀY

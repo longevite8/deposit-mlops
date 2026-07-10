@@ -274,6 +274,7 @@ drift_summary = {
     "status": status,
     "drift_ratio": drift_ratio,
     "n_features": len(current_df.columns),
+    "drift_result": drift_result,  # THÊM: đưa chi tiết drift vào summary
 }
 drift_lineage = {
     "drift_task_id": task.id,

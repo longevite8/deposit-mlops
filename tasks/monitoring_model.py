@@ -125,14 +125,8 @@ drift_summary = wait_for_artifact(
     logger_obj=task,
 )
 
-# drift_result là kết quả chi tiết từng feature, nên giữ nếu cần vẽ table
-drift_result = wait_for_artifact(
-    drift_task,
-    "drift_result",
-    max_retries=10,
-    wait_interval=2.0,
-    logger_obj=task,
-)
+# SỬA: Lấy drift_result trực tiếp từ drift_summary thay vì đợi một artifact riêng lẻ
+drift_result = drift_summary.get("drift_result", {})
 
 drift_lineage = wait_for_artifact(
     drift_task,

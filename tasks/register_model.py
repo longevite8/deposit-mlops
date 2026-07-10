@@ -47,10 +47,10 @@ if not params["train_task_id"] or not params["evaluate_task_id"]:
 
 evaluate_task = Task.get_task(task_id=params["evaluate_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
-evaluation_result = wait_for_artifact(
+# SỬA: Artifact name từ "evaluation_result" -> "evaluate_summary"
+evaluate_summary = wait_for_artifact(
     evaluate_task,
-    "evaluation_result",
+    "evaluate_summary",
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
@@ -95,12 +95,11 @@ hpo_task_id = train_params.get("General/hpo_task_id")
 
 # =====================================================
 # Publish model
-# =====================================================
-
-published = evaluation_result["passed"]
+# SỬA: Sử dụng evaluate_summary thay cho evaluation_result
+published = evaluate_summary["passed"]
 if published:
-    mape = evaluation_result["mape"]
-    r2 = evaluation_result["r2"]
+    mape = evaluate_summary["mape"]
+    r2 = evaluate_summary["r2"]
 
     registered_model.set_metadata(
         "mape",
@@ -177,8 +176,8 @@ else:
         "model_id": None,
         "train_task_id": None,
         "feature_dataset_id": feature_dataset_id,
-        "mape": evaluation_result["mape"],
-        "r2": evaluation_result["r2"],
+        "mape": evaluate_summary["mape"],
+        "r2": evaluate_summary["r2"],
     }
 
     task.get_logger().report_text("Quality gate not passed. Keep current champion.")

@@ -247,9 +247,7 @@ validate_summary = {
 }
 validate_lineage = {
     "validate_task_id": task.id,
-    "feature_task_id": params[
-        "feature_task_id"
-    ],  # SỬA: Dùng feature_task_id thay vì extract_task_id
+    "feature_task_id": params["feature_task_id"],  # SỬA: Dùng feature_task_id
 }
 task.upload_artifact("validate_summary", validate_summary)
 task.upload_artifact("validate_lineage", validate_lineage)

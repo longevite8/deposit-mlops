@@ -240,8 +240,6 @@ print("✅ Validation passed.")
 # Final flush before closing
 # =====================================================
 
-task.flush()
-
 validate_summary = {
     "status": "PASS" if passed else "FAIL",
     "checks_performed": len(REQUIRED_COLUMNS),
@@ -251,9 +249,14 @@ validate_lineage = {
     "validate_task_id": task.id,
     "feature_task_id": params[
         "feature_task_id"
-    ],  # Sửa từ extract_task_id thành feature_task_id
+    ],  # SỬA: Dùng feature_task_id thay vì extract_task_id
 }
 task.upload_artifact("validate_summary", validate_summary)
 task.upload_artifact("validate_lineage", validate_lineage)
 
+# =====================================================
+# Final flush before closing
+# =====================================================
+
+task.flush()
 task.close()

@@ -332,3 +332,11 @@ feature_lineage = {
 }
 task.upload_artifact("feature_summary", feature_summary)
 task.upload_artifact("feature_lineage", feature_lineage)
+
+# =====================================================
+# Final flush before closing
+# =====================================================
+
+task.flush()
+
+task.close()

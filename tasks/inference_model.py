@@ -174,23 +174,8 @@ prediction_df["prediction"] = prediction
 # Upload artifact
 # =====================================================
 
-task.upload_artifact(
-    "model_id",
-    champion_model.id,
-)
-
-task.upload_artifact(
-    "feature_dataset_id",
-    feature_dataset_id,
-)
-
-task.upload_artifact(
-    name="prediction_df",
-    artifact_object=prediction_df,
-)
-
 champion_metadata = champion_model.get_all_metadata()
-prediction_lineage = {
+inference_lineage = {
     "model_id": champion_model.id,
     "feature_dataset_id": feature_dataset_id,
     "raw_dataset_id": champion_metadata.get("raw_dataset_id", {}).get("value", ""),
@@ -199,26 +184,8 @@ prediction_lineage = {
     "inference_task_id": task.id,
 }
 
-task.upload_artifact(
-    "inference_lineage",
-    prediction_lineage,
-)
-
-prediction_summary = {
-    "n_rows": len(prediction_df),
-    "prediction_mean": float(prediction.mean()),
-    "prediction_min": float(prediction.min()),
-    "prediction_max": float(prediction.max()),
-    "prediction_std": float(prediction.std()),
-    "inference_time_sec": float(inference_time),
-    "latency_ms_per_sample": float(inference_latency_ms),
-    "batch_size": len(X),
-}
-
-task.upload_artifact(
-    "inference_summary",
-    prediction_summary,
-)
+task.upload_artifact(name="prediction_df", artifact_object=prediction_df)
+task.upload_artifact("inference_lineage", inference_lineage)
 
 # =====================================================
 # Log
@@ -278,7 +245,7 @@ task.get_logger().report_text(
 |-------|-------|
 | Champion Model ID | {champion_model.id} |
 | Feature Dataset ID | {feature_dataset_id} |
-| Training Task ID | {prediction_lineage["train_task_id"]} |
+| Training Task ID | {inference_lineage["train_task_id"]} |
 
 ## Predictions
 | Metric | Value |

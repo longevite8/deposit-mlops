@@ -13,7 +13,9 @@ from scipy.stats import ks_2samp
 
 from config import (
     DRIFT_PVALUE_THRESHOLD,
+    DRIFT_RATIO_WARNING_THRESHOLD,  # THÊM
     DRIFT_RATIO_THRESHOLD,
+    DRIFT_STATUS_LEVELS,  # THÊM
     FEATURE_COLUMNS,
     PROJECT_TEMPLATE,
     PROJECT_DATASET,
@@ -176,9 +178,7 @@ else:
 # Drift detection (Kolmogorov–Smirnov test)
 # =====================================================
 drift_result = {}
-
 drift_rows = []
-
 n_drift_features = 0
 
 for col in FEATURE_COLUMNS:
@@ -257,12 +257,13 @@ for col in FEATURE_COLUMNS:
 
 drift_ratio = n_drift_features / len(FEATURE_COLUMNS)
 
-if drift_ratio < 0.10:
-    status = "PASS"
+# Tối ưu logic check bằng cách sử dụng constants và mảng levels
+if drift_ratio < DRIFT_RATIO_WARNING_THRESHOLD:
+    status = DRIFT_STATUS_LEVELS[0]  # "PASS"
 elif drift_ratio < DRIFT_RATIO_THRESHOLD:
-    status = "WARNING"
+    status = DRIFT_STATUS_LEVELS[1]  # "WARNING"
 else:
-    status = "FAIL"
+    status = DRIFT_STATUS_LEVELS[2]  # "FAIL"
 
 drift_table = pd.DataFrame(drift_rows).sort_values("p_value")
 
@@ -271,46 +272,16 @@ min_p_value = float(drift_table.iloc[0]["p_value"])
 
 drift_summary = {
     "status": status,
-    "n_features": len(FEATURE_COLUMNS),
-    "n_drift_features": n_drift_features,
-    "drift_ratio": float(drift_ratio),
-    "drift_detected": bool(status == "FAIL"),
-    "max_drift_feature": max_drift_feature,
-    "min_p_value": min_p_value,
+    "drift_ratio": drift_ratio,
+    "n_features": len(current_df.columns),
 }
-
 drift_lineage = {
-    "current_feature_dataset_id": feature_dataset_id,
-    "reference_feature_dataset_id": reference_feature_dataset_id,
-    "model_id": champion_model_id,
-    "train_task_id": champion_train_task_id,
-    "feature_task_id": feature_task.id,
     "drift_task_id": task.id,
+    "feature_task_id": params["feature_task_id"],
+    "feature_dataset_id": feature_dataset_id,
 }
-
-# =====================================================
-# Upload artifacts
-# =====================================================
-
-task.upload_artifact(
-    name="drift_result",
-    artifact_object=drift_result,
-)
-
-task.upload_artifact(
-    name="drift_summary",
-    artifact_object=drift_summary,
-)
-
-task.upload_artifact(
-    name="drift_table",
-    artifact_object=drift_table,
-)
-
-task.upload_artifact(
-    "drift_lineage",
-    drift_lineage,
-)
+task.upload_artifact("drift_summary", drift_summary)
+task.upload_artifact("drift_lineage", drift_lineage)
 
 # =====================================================
 # Log

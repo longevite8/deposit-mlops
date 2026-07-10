@@ -320,9 +320,10 @@ task.close()
 # =====================================================
 
 feature_summary = {
-    "feature_columns": FEATURE_COLUMNS,
-    "train_ratio": TRAIN_RATIO,
     "feature_dataset_id": feature_dataset.id,
+    "train_rows": len(train_df),
+    "test_rows": len(test_df),
+    "features": FEATURE_COLUMNS,
 }
 feature_lineage = {
     "feature_task_id": task.id,

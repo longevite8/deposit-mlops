@@ -154,7 +154,7 @@ task.upload_artifact(
     feature_dataset_id,
 )
 
-evaluation_summary = {
+evaluate_summary = {
     "Feature Dataset": feature_dataset_id,
     "Raw Dataset": raw_dataset_id,
     "mape": float(mape),
@@ -166,24 +166,15 @@ evaluation_summary = {
     "r2_threshold": r2_threshold,
 }
 
-task.upload_artifact(
-    "evaluate_summary",
-    evaluation_summary,
-)
-
 evaluate_lineage = {
     "evaluate_task_id": task.id,
-    "train_task_id": train_task.id,
-    "feature_task_id": feature_task.id,
-    "feature_dataset_id": feature_dataset_id,
-    "raw_dataset_id": raw_dataset_id,
+    "train_task_id": params["train_task_id"],
+    "feature_task_id": params["feature_task_id"],
     "model_id": model_id,
+    "feature_dataset_id": feature_dataset_id,
 }
-
-task.upload_artifact(
-    "evaluate_lineage",
-    evaluate_lineage,
-)
+task.upload_artifact("evaluate_summary", evaluate_summary)
+task.upload_artifact("evaluate_lineage", evaluate_lineage)
 
 # =====================================================
 # Scalars
@@ -203,9 +194,9 @@ task.get_logger().report_single_value("r2_threshold", r2_threshold)
 
 task.get_logger().report_single_value("quality_gate_passed", int(passed))
 
-task.get_logger().report_text(f"Evaluation result = {evaluation_summary}")
+task.get_logger().report_text(f"Evaluation result = {evaluate_summary}")
 
-print(evaluation_summary)
+print(evaluate_summary)
 
 # Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()

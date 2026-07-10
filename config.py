@@ -132,8 +132,9 @@ MAE_THRESHOLD = 300.0  # Mean Absolute Error threshold
 # Drift Detection
 # =====================================================
 
-DRIFT_PVALUE_THRESHOLD = 0.05  # KS test p-value threshold
-DRIFT_RATIO_THRESHOLD = 0.3  # If > 30% of features drift → FAIL
+DRIFT_PVALUE_THRESHOLD = 0.05
+DRIFT_RATIO_WARNING_THRESHOLD = 0.1  # THÊM: Ngưỡng để chuyển từ PASS sang WARNING
+DRIFT_RATIO_THRESHOLD = 0.3  # Đây là ngưỡng FAIL (giữ nguyên)
 DRIFT_STATUS_LEVELS = ["PASS", "WARNING", "FAIL"]
 
 # =====================================================

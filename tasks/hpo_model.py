@@ -187,21 +187,13 @@ hpo_summary = {
     "best_score": study.best_value,
     "n_trials": N_TRIALS,
 }
-
-task.upload_artifact(
-    "hpo_summary",
-    hpo_summary,
-)
-
 hpo_lineage = {
     "hpo_task_id": task.id,
     "feature_task_id": params["feature_task_id"],
+    "feature_dataset_id": feature_dataset_id,
 }
-
-task.upload_artifact(
-    "hpo_lineage",
-    hpo_lineage,
-)
+task.upload_artifact("hpo_summary", hpo_summary)
+task.upload_artifact("hpo_lineage", hpo_lineage)
 
 
 # =====================================================

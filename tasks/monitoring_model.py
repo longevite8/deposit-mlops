@@ -86,26 +86,26 @@ actual_df = pd.read_parquet(local_path / "test.parquet")
 
 inference_task = Task.get_task(task_id=params["inference_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+# SỬA: Đổi từ prediction_df/summary/lineage -> inference_df/summary/lineage
 prediction_df = wait_for_artifact(
     inference_task,
-    "prediction_df",
+    "prediction_df",  # Giữ nguyên vì đây là data object
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
 )
 
-prediction_summary = wait_for_artifact(
+inference_summary = wait_for_artifact(
     inference_task,
-    "prediction_summary",
+    "inference_summary",  # SỬA phù hợp với task name
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
 )
 
-prediction_lineage = wait_for_artifact(
+inference_lineage = wait_for_artifact(
     inference_task,
-    "prediction_lineage",
+    "inference_lineage",  # SỬA phù hợp với task name
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
@@ -117,7 +117,6 @@ prediction_lineage = wait_for_artifact(
 
 drift_task = Task.get_task(task_id=params["drift_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
 drift_summary = wait_for_artifact(
     drift_task,
     "drift_summary",
@@ -126,6 +125,7 @@ drift_summary = wait_for_artifact(
     logger_obj=task,
 )
 
+# drift_result là kết quả chi tiết từng feature, nên giữ nếu cần vẽ table
 drift_result = wait_for_artifact(
     drift_task,
     "drift_result",
@@ -214,7 +214,7 @@ monitoring_summary = {
     "need_retraining": bool(need_retraining),
     "drift_status": drift_status,
     "drift_ratio": float(drift_ratio),
-    "model_id": prediction_lineage["model_id"],
+    "model_id": inference_lineage["model_id"],  # SỬA tên biến
     "feature_dataset_id": feature_dataset_id,
 }
 
@@ -230,12 +230,12 @@ monitoring_metrics = {
 }
 
 monitoring_lineage = {
-    "model_id": prediction_lineage["model_id"],
+    "model_id": inference_lineage["model_id"],  # SỬA tên biến
     "feature_dataset_id": feature_dataset_id,
-    "prediction_task_id": inference_task.id,
+    "inference_task_id": inference_task.id,  # SỬA tên key cho đúng inference
     "drift_task_id": drift_task.id,
     "monitoring_task_id": task.id,
-    "prediction_lineage": prediction_lineage,
+    "inference_lineage": inference_lineage,  # SỬA tên biến
     "drift_lineage": drift_lineage,
 }
 
@@ -424,7 +424,7 @@ task.get_logger().report_table(
     table_plot=metrics_df,
 )
 
-prediction_summary_df = pd.DataFrame([prediction_summary])
+prediction_summary_df = pd.DataFrame([inference_summary])
 task.get_logger().report_table(
     title="Prediction Summary",
     series="prediction",

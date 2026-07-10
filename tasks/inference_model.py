@@ -184,7 +184,19 @@ inference_lineage = {
     "inference_task_id": task.id,
 }
 
+# THÊM: Tạo inference_summary
+inference_summary = {
+    "prediction_mean": float(prediction.mean()),
+    "prediction_std": float(prediction.std()),
+    "prediction_min": float(prediction.min()),
+    "prediction_max": float(prediction.max()),
+    "total_inference_time_sec": float(inference_time),
+    "latency_ms_per_sample": float(inference_latency_ms),
+    "batch_size": len(X),
+}
+
 task.upload_artifact(name="prediction_df", artifact_object=prediction_df)
+task.upload_artifact("inference_summary", inference_summary)  # THÊM
 task.upload_artifact("inference_lineage", inference_lineage)
 
 # =====================================================

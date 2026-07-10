@@ -9,7 +9,6 @@ from config import (
     MAX_VALUE,
     MAX_MISSING_RATE,
     PROJECT_TEMPLATE,
-    PROJECT_DATASET,
     REQUIRED_COLUMNS,
     TEMPLATE_VALIDATE_NAME,
 )
@@ -47,48 +46,32 @@ if not params["feature_task_id"]:
 # Load datasets from feature Dataset (parquet)
 # =====================================================
 
+# Load feature dataset info
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
-feature_dataset_id = wait_for_artifact(
+# Ưu tiên lấy từ lineage/summary nếu có
+feature_lineage = wait_for_artifact(
     feature_task,
-    "feature_dataset_id",
+    "feature_lineage",
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
 )
+feature_dataset_id = feature_lineage["feature_dataset_id"]
 
 task.get_logger().report_text(f"📌 Loading feature dataset: {feature_dataset_id}")
 
-# SỬA: Thêm try-except với fallback logic
 try:
     feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
+    task.get_logger().report_text(f"✅ Feature dataset loaded: {feature_dataset.id}")
+except Exception as e:
+    # Nếu lỗi ID, thử lấy bằng name nhưng không cần chỉ định rõ project quá sâu
     task.get_logger().report_text(
-        f"✅ Feature dataset loaded by ID: {feature_dataset.id}"
+        f"⚠️ ID error: {str(e)}. Trying by name...", level="warning"
     )
-except ValueError as e:
-    task.get_logger().report_text(
-        f"⚠️ Cannot load dataset by ID ({feature_dataset_id}): {str(e)}\n"
-        f"   Falling back to latest finalized by name...",
-        level="warning",
+    feature_dataset = Dataset.get(
+        dataset_name="Deposit Feature Dataset",  # ClearML sẽ tự search trong project hiện tại
     )
-
-    try:
-        feature_dataset = Dataset.get(
-            dataset_project=PROJECT_DATASET,
-            dataset_name="Deposit Feature Dataset",
-        )
-        task.get_logger().report_text(
-            f"✅ Feature dataset loaded by name (fallback): {feature_dataset.id}"
-        )
-    except Exception as e2:
-        task.get_logger().report_text(
-            f"❌ Failed to load feature dataset:\n"
-            f"   By ID: {str(e)}\n"
-            f"   By Name: {str(e2)}",
-            level="error",
-        )
-        raise ValueError(f"Could not load feature dataset: {e2}")
 
 local_path = Path(feature_dataset.get_local_copy())
 
@@ -247,7 +230,8 @@ validate_summary = {
 }
 validate_lineage = {
     "validate_task_id": task.id,
-    "feature_task_id": params["feature_task_id"],  # SỬA: Dùng feature_task_id
+    "feature_task_id": params["feature_task_id"],
+    "feature_dataset_id": feature_dataset_id,
 }
 task.upload_artifact("validate_summary", validate_summary)
 task.upload_artifact("validate_lineage", validate_lineage)

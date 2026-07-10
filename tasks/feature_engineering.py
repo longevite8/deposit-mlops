@@ -226,117 +226,36 @@ feature_dataset.finalize()
 task.get_logger().report_text(f"✅ Dataset finalized: {feature_dataset.id}")
 
 # =====================================================
-# QUAN TRỌNG: Flush ngay sau khi finalize Dataset
-# =====================================================
-
-time.sleep(1)  # Chờ ClearML server xử lý
-task.flush()
-
-# =====================================================
-# Verify Dataset ID trước khi upload artifact
-# =====================================================
-
-try:
-    # Verify dataset ID có valid không
-    verify_dataset = Dataset.get(dataset_id=feature_dataset.id)
-    task.get_logger().report_text(f"✅ Dataset ID verified: {verify_dataset.id}")
-    final_dataset_id = verify_dataset.id
-except Exception as e:
-    task.get_logger().report_text(
-        f"⚠️ Dataset ID verification failed: {str(e)}\n"
-        f"   Using dataset ID from object anyway: {feature_dataset.id}",
-        level="warning",
-    )
-    final_dataset_id = feature_dataset.id
-
-# =====================================================
-# Upload artifacts
-# =====================================================
-
-task.upload_artifact(
-    "raw_dataset_id",
-    raw_dataset_id,
-)
-
-task.upload_artifact(
-    "feature_dataset_id",
-    final_dataset_id,  # ← Dùng verified dataset ID
-)
-
-feature_dataset_info = {
-    "dataset_id": final_dataset_id,
-    "raw_dataset_id": raw_dataset_id,
-    "train_rows": len(train_df),
-    "valid_rows": len(valid_df),
-    "test_rows": len(test_df),
-    "feature_columns": FEATURE_COLUMNS,
-}
-
-task.upload_artifact(
-    "feature_dataset_info",
-    feature_dataset_info,
-)
-
-# =====================================================
-# Logging
-# =====================================================
-
-task.get_logger().report_text(f"Features = {FEATURE_COLUMNS}")
-
-task.get_logger().report_text(
-    f"train={len(train_df)}, valid={len(valid_df)}, test={len(test_df)}"
-)
-
-task.get_logger().report_text(f"Feature Dataset ID = {final_dataset_id}")
-
-task.get_logger().report_text(f"Raw Dataset ID = {raw_dataset_id}")
-
-task.get_logger().report_text(
-    f"""
-    Feature Dataset
-    ------------------------
-    id : {final_dataset_id}
-
-    train : {len(train_df)}
-
-    valid : {len(valid_df)}
-
-    test : {len(test_df)}
-    """
-)
-
-print("✅ Feature engineering completed.")
-
-# =====================================================
-# Final flush before closing
-# =====================================================
-
-task.flush()
-
-task.close()
-
-# =====================================================
-# Upload feature summary and lineage
+# SỬA: Đưa toàn bộ upload artifact lên TRƯỚC khi close
 # =====================================================
 
 feature_summary = {
     "feature_dataset_id": feature_dataset.id,
     "train_rows": len(train_df),
+    "valid_rows": len(valid_df),
     "test_rows": len(test_df),
     "features": FEATURE_COLUMNS,
 }
+
 feature_lineage = {
     "feature_task_id": task.id,
     "extract_task_id": params["extract_task_id"],
     "feature_dataset_id": feature_dataset.id,
 }
+
+# Upload các chuẩn mới (Lineage & Summary)
 task.upload_artifact("feature_summary", feature_summary)
 task.upload_artifact("feature_lineage", feature_lineage)
 
+# Giữ lại các artifact cũ để tương thích với các bước đang dùng wait_for_artifact lẻ
+task.upload_artifact("feature_dataset_id", feature_dataset.id)
+task.upload_artifact("feature_dataset_info", feature_summary)
+
 # =====================================================
-# Final flush before closing
+# Công tác kết thúc: Flush -> Close (CHỈ GỌI 1 LẦN)
 # =====================================================
 
 task.flush()
-
 task.close()
+
+# XOÁ BỎ TOÀN BỘ PHẦN CODE TRÙNG LẶP PHÍA DƯỚI DÒNG NÀY

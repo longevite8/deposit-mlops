@@ -35,7 +35,6 @@ pipe = PipelineController(
 # =====================================================
 
 # Check nếu là child task của auto_retraining
-parent_task_id = None
 is_auto_triggered = False
 
 try:
@@ -43,38 +42,24 @@ try:
 
     current_task = SingleTask.current_task()
     if current_task:
-        # Lấy parent task info
-        parent_task_id = current_task.parent_task_id
-        if parent_task_id:
+        # SỬA: Kiểm tra tham số mà auto_retraining.py luôn set khi trigger
+        # Chúng ta dùng get_parameter trực tiếp từ task instance
+        trigger_id = current_task.get_parameter("Trigger/auto_retraining_task_id")
+        if trigger_id:
             is_auto_triggered = True
 except Exception:
-    # Standalone script → không có parent task
     is_auto_triggered = False
 
 # =====================================================
-# Set tags dựa vào trigger mode
+# Set tags dựa vào trigger mode thực tế
 # =====================================================
 
 if is_auto_triggered:
-    # Trigger từ auto_retraining → set "automated"
-    pipe.task.set_tags(
-        [
-            "pipeline",
-            "training",
-            "automated",  # ← Auto-triggered
-        ]
-    )
-    run_mode = "AUTOMATED (by auto_retraining)"
+    pipe.task.set_tags(["pipeline", "training", "automated"])
+    run_mode = "AUTOMATED"
 else:
-    # Chạy manual (trực tiếp) → set "manual"
-    pipe.task.set_tags(
-        [
-            "pipeline",
-            "training",
-            "manual",  # ← Manual (user-initiated)
-        ]
-    )
-    run_mode = "MANUAL (user-initiated)"
+    pipe.task.set_tags(["pipeline", "training", "manual"])
+    run_mode = "MANUAL"
 
 pipe.task.set_comment(
     f"Training Pipeline ({run_mode})\nTimestamp: {timestamp}\nRun Mode: {run_mode}"

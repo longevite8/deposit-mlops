@@ -56,14 +56,16 @@ if not params["feature_task_id"]:
 
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
-feature_dataset_id = wait_for_artifact(
+# SỬA: Sử dụng feature_lineage để lấy feature_dataset_id
+feature_lineage = wait_for_artifact(
     feature_task,
-    "feature_dataset_id",
+    "feature_lineage",
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
 )
+
+feature_dataset_id = feature_lineage["feature_dataset_id"]
 
 feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
 

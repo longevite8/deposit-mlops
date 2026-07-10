@@ -58,14 +58,16 @@ feature_task = Task.get_task(
     task_id=params["feature_task_id"],
 )
 
-# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
-feature_dataset_id = wait_for_artifact(
+# SỬA: Lấy lineage của feature_task để truy xuất thông tin nguồn gốc
+feature_lineage = wait_for_artifact(
     feature_task,
-    "feature_dataset_id",
+    "feature_lineage",
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
 )
+
+feature_dataset_id = feature_lineage["feature_dataset_id"]
 
 feature_dataset = Dataset.get(
     dataset_id=feature_dataset_id,
@@ -195,7 +197,17 @@ output_model.set_metadata(
     task.id,
 )
 
-raw_dataset_id = feature_task.artifacts["raw_dataset_id"].get()
+# SỬA: Truy vết raw_dataset_id từ extract_task thông qua feature_lineage
+extract_task_id = feature_lineage["extract_task_id"]
+extract_task = Task.get_task(task_id=extract_task_id)
+extract_summary = wait_for_artifact(
+    extract_task,
+    "extract_summary",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+raw_dataset_id = extract_summary["dataset_id"]
 
 output_model.set_metadata(
     "raw_dataset_id",

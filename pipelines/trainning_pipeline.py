@@ -31,10 +31,8 @@ pipe = PipelineController(
 )
 
 # =====================================================
-# SỬA: Detect nếu được trigger từ auto_retraining hay chạy manual
+# Detect nếu được trigger từ auto_retraining hay chạy manual
 # =====================================================
-
-# Check nếu là child task của auto_retraining
 is_auto_triggered = False
 
 try:
@@ -42,8 +40,7 @@ try:
 
     current_task = SingleTask.current_task()
     if current_task:
-        # SỬA: Kiểm tra tham số mà auto_retraining.py luôn set khi trigger
-        # Chúng ta dùng get_parameter trực tiếp từ task instance
+        # Kiểm tra tham số mà auto_retraining.py luôn set khi trigger
         trigger_id = current_task.get_parameter("Trigger/auto_retraining_task_id")
         if trigger_id:
             is_auto_triggered = True
@@ -294,7 +291,7 @@ while elapsed_time < max_wait_time:
         elapsed_time += wait_interval
 
 # =====================================================
-# SỬA: KHÔNG gọi close() ngay!
+# KHÔNG gọi close() ngay!
 # Chỉ flush() để ghi final state
 # =====================================================
 

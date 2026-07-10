@@ -18,9 +18,6 @@ from config import (
     CLEARML_SERVER_URL,
 )
 
-# =====================================================
-# IMPORTANT: Production Pipeline giữ version cố định
-# =====================================================
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -30,12 +27,6 @@ pipe = PipelineController(
     version=DEPLOYMENT_VERSION,
 )
 
-# =====================================================
-# SỬA: Dùng set_tags() thay vì add_tags()
-# set_tags() = REPLACE tất cả tags (xoá cũ, set mới)
-# add_tags() = THÊM vào cũ (không xoá cũ) ← AVOID!
-# =====================================================
-
 pipe.task.set_tags(
     [
         "pipeline",
@@ -43,7 +34,6 @@ pipe.task.set_tags(
     ]
 )
 
-# SỬA: Dùng set_comment() thay vì set_description()
 pipe.task.set_comment(f"Production Pipeline (automated)\nTimestamp: {timestamp}")
 
 pipe.set_default_execution_queue(SERVICES_QUEUE)
@@ -158,7 +148,7 @@ pipe.add_step(
 )
 
 # =====================================================
-# FIX QUAN TRỌNG - Ensure pipeline is properly registered
+# Ensure pipeline is properly registered
 # =====================================================
 
 # Flush trước khi start
@@ -218,7 +208,7 @@ while elapsed_time < max_wait_time:
         elapsed_time += wait_interval
 
 # =====================================================
-# SỬA: KHÔNG gọi close() ngay!
+# KHÔNG gọi close() ngay!
 # Chỉ flush() để ghi final state
 # =====================================================
 

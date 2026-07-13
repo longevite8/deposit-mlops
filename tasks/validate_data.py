@@ -127,61 +127,15 @@ task.get_logger().report_text(
 
 df = train_df.copy().reset_index(drop=True)
 
-# # =====================================================
-# # Schema validation
-# # =====================================================
-
-# missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-
-# schema_ok = len(missing_columns) == 0
-
-# # =====================================================
-# # Missing value validation
-# # =====================================================
-
-# missing_rate = df[REQUIRED_COLUMNS].isna().mean()
-
-# missing_ok = missing_rate.max() <= MAX_MISSING_RATE
-
-# # =====================================================
-# # Dtype validation
-# # =====================================================
-
-# bad_columns = []
-
-# for col in REQUIRED_COLUMNS:
-#     if str(df[col].dtype) not in (
-#         "int64",
-#         "float64",
-#         "bool",
-#     ):
-#         bad_columns.append(col)
-
-# dtype_ok = len(bad_columns) == 0
-
-# # =====================================================
-# # Range validation
-# # =====================================================
-
-# range_ok = df[TARGET_COLUMN].between(MIN_VALUE, MAX_VALUE).all()
-
-# if not range_ok:
-#     print(
-#         f"❌ Range validation failed: {TARGET_COLUMN} contains values outside [{MIN_VALUE}, {MAX_VALUE}]"
-#     )
-#     task.get_logger().report_text(f"Range validation failed for {TARGET_COLUMN}")
-#     task.close()
-#     raise SystemExit(1)
-
-# print("✅ Range validation passed.")
-
-# # =====================================================
-# # Final result
-# # =====================================================
-
-# passed = schema_ok and missing_ok and dtype_ok and range_ok
+# =====================================================
+# BUSINESS LOGIC: Begin
+# =====================================================
 
 validate_check = validate_data(df)
+
+# =====================================================
+# BUSINESS LOGIC: End
+# =====================================================
 
 validation_report = {
     "schema_ok": validate_check["schema_check"]["schema_ok"],

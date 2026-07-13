@@ -1,6 +1,5 @@
-import numpy as np
-import pandas as pd
 import tempfile
+import os
 from clearml import (
     Task,
     Dataset,
@@ -9,15 +8,11 @@ from config import (
     PROJECT_TEMPLATE,
     PROJECT_DATASET,
     TEMPLATE_EXTRACT_NAME,
-    RANDOM_STATE,
-    DATE_COLUMN,
-    TARGET_COLUMN,  # ← THAY: RAW_TARGET_COLUMN → TARGET_COLUMN
     START_DATE,
     N_DAYS,
-    GAMMA_SHAPE,
-    GAMMA_SCALE,
 )
-import os
+from business.data_processing import extract_data
+
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -25,38 +20,12 @@ task = Task.init(
     task_type=Task.TaskTypes.data_processing,
 )
 
-
 # =====================================================
-# Reproducibility
-# =====================================================
-
-np.random.seed(RANDOM_STATE)
-
-
-# =====================================================
-# Generate synthetic data
+# BUSINESS LOGIC
 # =====================================================
 
-dates = pd.date_range(
-    start=START_DATE,
-    periods=N_DAYS,
-)
+df = extract_data()
 
-df = pd.DataFrame(
-    {
-        DATE_COLUMN: dates,
-        TARGET_COLUMN: np.random.gamma(
-            shape=GAMMA_SHAPE,
-            scale=GAMMA_SCALE,
-            size=len(dates),
-        ),
-    }
-)
-
-task.upload_artifact(
-    "raw_data",
-    df,
-)
 
 # =====================================================
 # Convert df to parquet file for storing in ClearML Dataset
@@ -117,14 +86,6 @@ task.flush()
 # Upload artifact
 # =====================================================
 
-task.get_logger().report_text(f"raw_dataset_id={dataset.id}")
-
-print(df.head())
-print("✅ Extract completed.")
-
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
-task.flush()
-
 extract_summary = {
     "n_rows": len(df),
     "start_date": START_DATE,
@@ -137,5 +98,12 @@ extract_lineage = {
 }
 task.upload_artifact("extract_summary", extract_summary)
 task.upload_artifact("extract_lineage", extract_lineage)
+task.upload_artifact("raw_data", df)
 
+task.get_logger().report_text(f"raw_dataset_id={dataset.id}")
+
+print(df.head())
+print("✅ Extract completed.")
+
+task.flush()
 task.close()

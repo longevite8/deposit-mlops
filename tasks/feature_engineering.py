@@ -7,7 +7,7 @@ from clearml import (
     Dataset,
 )
 
-from src.features import create_features
+from business.features import create_features
 
 from config import (
     PROJECT_TEMPLATE,
@@ -18,7 +18,7 @@ from config import (
     PROJECT_DATASET,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from helpers import wait_for_artifact
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -54,8 +54,8 @@ extract_task = Task.get_task(
     task_id=params["extract_task_id"],
 )
 
-# SỬA: Dùng wait_for_artifact để chắc chắn data sẵn sàng
-df = wait_for_artifact(
+# Wait_for_artifact để chắc chắn data sẵn sàng
+raw_data_df = wait_for_artifact(
     extract_task,
     "raw_data",
     max_retries=10,
@@ -63,7 +63,6 @@ df = wait_for_artifact(
     logger_obj=task,
 )
 
-# SỬA: Lấy extract_summary thay vì tìm artifact raw_dataset_id riêng lẻ
 extract_summary = wait_for_artifact(
     extract_task,
     "extract_summary",
@@ -75,7 +74,6 @@ extract_summary = wait_for_artifact(
 raw_dataset_id = extract_summary["raw_dataset_id"]
 
 try:
-    # Thử lấy Dataset theo ID từ artifact
     raw_dataset = Dataset.get(dataset_id=raw_dataset_id)
     task.get_logger().report_text(f"✅ Raw dataset loaded: {raw_dataset.id}")
 except Exception as e:
@@ -95,26 +93,26 @@ if not raw_dataset:
     raise ValueError(f"Could not find a valid Raw Dataset for ID: {raw_dataset_id}")
 
 # =====================================================
-# Feature Engineering
+# BUSINESS LOGIC
 # =====================================================
 
-df = create_features(df)
+features_df = create_features(raw_data_df)
 
 # =====================================================
 # Train / Valid / Test split
 # =====================================================
 
-n = len(df)
+n = len(features_df)
 
 train_end = int(n * TRAIN_RATIO)
 
 valid_end = int(n * (TRAIN_RATIO + VALID_RATIO))
 
-train_df = df.iloc[:train_end]
+train_df = features_df.iloc[:train_end]
 
-valid_df = df.iloc[train_end:valid_end]
+valid_df = features_df.iloc[train_end:valid_end]
 
-test_df = df.iloc[valid_end:]
+test_df = features_df.iloc[valid_end:]
 
 # =====================================================
 # Build Feature Dataset
@@ -228,10 +226,6 @@ feature_dataset.finalize()
 
 task.get_logger().report_text(f"✅ Dataset finalized: {feature_dataset.id}")
 
-# =====================================================
-# SỬA: Đưa toàn bộ upload artifact lên TRƯỚC khi close
-# =====================================================
-
 feature_summary = {
     "feature_dataset_id": feature_dataset.id,
     "train_rows": len(train_df),
@@ -246,14 +240,9 @@ feature_lineage = {
     "feature_dataset_id": feature_dataset.id,
 }
 
-# Upload các chuẩn mới (Lineage & Summary)
 task.upload_artifact("feature_summary", feature_summary)
 task.upload_artifact("feature_lineage", feature_lineage)
 task.upload_artifact("feature_dataset_id", feature_dataset.id)
 
-
-# =====================================================
-# Flush -> Close
-# =====================================================
 task.flush()
 task.close()

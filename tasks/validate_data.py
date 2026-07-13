@@ -1,20 +1,17 @@
 from pathlib import Path
-import time  # THÊM: import time để dùng sleep
+import time
 
 import pandas as pd
 from clearml import Dataset, Task
 
 from config import (
-    TARGET_COLUMN,
-    MIN_VALUE,
-    MAX_VALUE,
-    MAX_MISSING_RATE,
     PROJECT_TEMPLATE,
     REQUIRED_COLUMNS,
     TEMPLATE_VALIDATE_NAME,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from helpers import wait_for_artifact
+from business.validate import validate_data
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -50,7 +47,6 @@ if not params["feature_task_id"]:
 # Load feature dataset info
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-# Ưu tiên lấy từ lineage/summary nếu có
 feature_lineage = wait_for_artifact(
     feature_task,
     "feature_lineage",
@@ -62,7 +58,7 @@ feature_dataset_id = feature_lineage["feature_dataset_id"]
 
 task.get_logger().report_text(f"📌 Loading feature dataset: {feature_dataset_id}")
 
-# THÊM: Một khoảng nghỉ cố định để đảm bảo ClearML Backend đã index xong Dataset từ step trước
+# Một khoảng nghỉ cố định để đảm bảo ClearML Backend đã index xong Dataset từ step trước
 time.sleep(5)
 
 max_dataset_retries = 5
@@ -89,7 +85,7 @@ for attempt in range(max_dataset_retries):
                 f"⚠️ Attempt {attempt + 1} failed to load metadata: {str(e)}. Retrying in 5s...",
                 level="warning",
             )
-            time.sleep(5)  # Tăng thời gian đợi lên 5s
+            time.sleep(5)
         else:
             task.get_logger().report_text(
                 f"⚠️ ID error after {max_dataset_retries} retries: {str(e)}. Trying by name fallback...",
@@ -131,68 +127,70 @@ task.get_logger().report_text(
 
 df = train_df.copy().reset_index(drop=True)
 
-# =====================================================
-# Schema validation
-# =====================================================
+# # =====================================================
+# # Schema validation
+# # =====================================================
 
-missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
+# missing_columns = [col for col in REQUIRED_COLUMNS if col not in df.columns]
 
-schema_ok = len(missing_columns) == 0
+# schema_ok = len(missing_columns) == 0
 
-# =====================================================
-# Missing value validation
-# =====================================================
+# # =====================================================
+# # Missing value validation
+# # =====================================================
 
-missing_rate = df[REQUIRED_COLUMNS].isna().mean()
+# missing_rate = df[REQUIRED_COLUMNS].isna().mean()
 
-missing_ok = missing_rate.max() <= MAX_MISSING_RATE
+# missing_ok = missing_rate.max() <= MAX_MISSING_RATE
 
-# =====================================================
-# Dtype validation
-# =====================================================
+# # =====================================================
+# # Dtype validation
+# # =====================================================
 
-bad_columns = []
+# bad_columns = []
 
-for col in REQUIRED_COLUMNS:
-    if str(df[col].dtype) not in (
-        "int64",
-        "float64",
-        "bool",
-    ):
-        bad_columns.append(col)
+# for col in REQUIRED_COLUMNS:
+#     if str(df[col].dtype) not in (
+#         "int64",
+#         "float64",
+#         "bool",
+#     ):
+#         bad_columns.append(col)
 
-dtype_ok = len(bad_columns) == 0
+# dtype_ok = len(bad_columns) == 0
 
-# =====================================================
-# Range validation
-# =====================================================
+# # =====================================================
+# # Range validation
+# # =====================================================
 
-range_ok = df[TARGET_COLUMN].between(MIN_VALUE, MAX_VALUE).all()
+# range_ok = df[TARGET_COLUMN].between(MIN_VALUE, MAX_VALUE).all()
 
-if not range_ok:
-    print(
-        f"❌ Range validation failed: {TARGET_COLUMN} contains values outside [{MIN_VALUE}, {MAX_VALUE}]"
-    )
-    task.get_logger().report_text(f"Range validation failed for {TARGET_COLUMN}")
-    task.close()
-    raise SystemExit(1)
+# if not range_ok:
+#     print(
+#         f"❌ Range validation failed: {TARGET_COLUMN} contains values outside [{MIN_VALUE}, {MAX_VALUE}]"
+#     )
+#     task.get_logger().report_text(f"Range validation failed for {TARGET_COLUMN}")
+#     task.close()
+#     raise SystemExit(1)
 
-print("✅ Range validation passed.")
+# print("✅ Range validation passed.")
 
-# =====================================================
-# Final result
-# =====================================================
+# # =====================================================
+# # Final result
+# # =====================================================
 
-passed = schema_ok and missing_ok and dtype_ok and range_ok
+# passed = schema_ok and missing_ok and dtype_ok and range_ok
+
+validate_check = validate_data(df)
 
 validation_report = {
-    "schema_ok": schema_ok,
-    "missing_ok": missing_ok,
-    "dtype_ok": dtype_ok,
-    "range_ok": range_ok,
-    "passed": passed,
-    "missing_columns": missing_columns,
-    "bad_columns": bad_columns,
+    "schema_ok": validate_check["schema_check"]["schema_ok"],
+    "missing_ok": validate_check["missing_check"]["missing_ok"],
+    "dtype_ok": validate_check["dtype_check"]["dtype_ok"],
+    "range_ok": validate_check["range_check"]["range_ok"],
+    "passed": validate_check["passed"],
+    "missing_columns": validate_check["schema_check"]["missing_columns"],
+    "bad_columns": validate_check["dtype_check"]["bad_columns"],
     "n_rows": len(df),
     "n_features": len(REQUIRED_COLUMNS),
 }
@@ -206,9 +204,11 @@ task.upload_artifact(
 # Report scalars for observability
 # =====================================================
 
-task.get_logger().report_single_value("passed", int(passed))
+task.get_logger().report_single_value("passed", int(validate_check["passed"]))
 
-task.get_logger().report_single_value("missing_rate_max", float(missing_rate.max()))
+task.get_logger().report_single_value(
+    "missing_rate_max", float(validate_check["missing_check"]["missing_rate_max"])
+)
 
 task.get_logger().report_single_value("n_rows", len(df))
 
@@ -216,23 +216,23 @@ summary_df = pd.DataFrame(
     [
         {
             "check": "schema",
-            "passed": schema_ok,
-            "details": str(missing_columns) if missing_columns else "OK",
+            "passed": validate_check["schema_check"]["schema_ok"],
+            "details": validate_check["schema_check"]["message"],
         },
         {
             "check": "missing_values",
-            "passed": missing_ok,
-            "details": f"max_rate={missing_rate.max():.4f}",
+            "passed": validate_check["missing_check"]["missing_ok"],
+            "details": validate_check["missing_check"]["message"],
         },
         {
             "check": "dtypes",
-            "passed": dtype_ok,
-            "details": str(bad_columns) if bad_columns else "OK",
+            "passed": validate_check["dtype_check"]["dtype_ok"],
+            "details": validate_check["dtype_check"]["message"],
         },
         {
             "check": "range",
-            "passed": range_ok,
-            "details": "target > 0",
+            "passed": validate_check["range_check"]["range_ok"],
+            "details": validate_check["range_check"]["message"],
         },
     ]
 )
@@ -244,21 +244,16 @@ task.get_logger().report_table(
     table_plot=summary_df,
 )
 
-if not passed:
+if not validate_check["passed"]:
     raise ValueError(f"Validation failed: {validation_report}")
 
 task.get_logger().report_text(str(validation_report))
 
 print("✅ Validation passed.")
 
-# =====================================================
-# Final flush before closing
-# =====================================================
-
 validate_summary = {
-    "status": "PASS" if passed else "FAIL",
-    "checks_performed": len(REQUIRED_COLUMNS),
-    "failed_checks": len(bad_columns) + (1 if not range_ok else 0),
+    "status": "PASS" if validate_check["passed"] else "FAIL",
+    "checks_performed": summary_df.to_dict(orient="records"),
 }
 validate_lineage = {
     "validate_task_id": task.id,

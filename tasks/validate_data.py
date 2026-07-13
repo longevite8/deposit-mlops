@@ -62,27 +62,37 @@ feature_dataset_id = feature_lineage["feature_dataset_id"]
 
 task.get_logger().report_text(f"📌 Loading feature dataset: {feature_dataset_id}")
 
-# SỬA: Thêm vòng lặp retry để tránh lỗi NoneType khi server chưa đồng bộ kịp project name
+# THÊM: Một khoảng nghỉ cố định để đảm bảo ClearML Backend đã index xong Dataset từ step trước
+time.sleep(5)
+
 max_dataset_retries = 5
 feature_dataset = None
 
 for attempt in range(max_dataset_retries):
     try:
+        # Thử lấy dataset instance
         feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
-        task.get_logger().report_text(
-            f"✅ Feature dataset loaded: {feature_dataset.id}"
-        )
-        break  # Thành công thì thoát vòng lặp
-    except Exception as e:
+
+        # Kiểm tra thêm thuộc tính project để đảm bảo SDK đã load đủ metadata
+        if feature_dataset and feature_dataset.project:
+            task.get_logger().report_text(
+                f"✅ Feature dataset loaded: {feature_dataset.id}"
+            )
+            break
+        else:
+            raise ValueError("Dataset project metadata is not yet available.")
+
+    except (Exception, TypeError) as e:
+        # Bắt thêm TypeError vì SDK crash tại dòng check project name (NoneType)
         if attempt < max_dataset_retries - 1:
             task.get_logger().report_text(
-                f"⚠️ Attempt {attempt + 1} failed to load dataset: {str(e)}. Retrying in 3s...",
+                f"⚠️ Attempt {attempt + 1} failed to load metadata: {str(e)}. Retrying in 5s...",
                 level="warning",
             )
-            time.sleep(3)
+            time.sleep(5)  # Tăng thời gian đợi lên 5s
         else:
             task.get_logger().report_text(
-                f"⚠️ ID error after retries: {str(e)}. Trying by name fallback...",
+                f"⚠️ ID error after {max_dataset_retries} retries: {str(e)}. Trying by name fallback...",
                 level="warning",
             )
             try:

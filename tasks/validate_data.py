@@ -1,4 +1,5 @@
 from pathlib import Path
+import time  # THÊM: import time để dùng sleep
 
 import pandas as pd
 from clearml import Dataset, Task
@@ -61,17 +62,38 @@ feature_dataset_id = feature_lineage["feature_dataset_id"]
 
 task.get_logger().report_text(f"📌 Loading feature dataset: {feature_dataset_id}")
 
-try:
-    feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
-    task.get_logger().report_text(f"✅ Feature dataset loaded: {feature_dataset.id}")
-except Exception as e:
-    # Nếu lỗi ID, thử lấy bằng name nhưng không cần chỉ định rõ project quá sâu
-    task.get_logger().report_text(
-        f"⚠️ ID error: {str(e)}. Trying by name...", level="warning"
-    )
-    feature_dataset = Dataset.get(
-        dataset_name="Deposit Feature Dataset",  # ClearML sẽ tự search trong project hiện tại
-    )
+# SỬA: Thêm vòng lặp retry để tránh lỗi NoneType khi server chưa đồng bộ kịp project name
+max_dataset_retries = 5
+feature_dataset = None
+
+for attempt in range(max_dataset_retries):
+    try:
+        feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
+        task.get_logger().report_text(
+            f"✅ Feature dataset loaded: {feature_dataset.id}"
+        )
+        break  # Thành công thì thoát vòng lặp
+    except Exception as e:
+        if attempt < max_dataset_retries - 1:
+            task.get_logger().report_text(
+                f"⚠️ Attempt {attempt + 1} failed to load dataset: {str(e)}. Retrying in 3s...",
+                level="warning",
+            )
+            time.sleep(3)
+        else:
+            task.get_logger().report_text(
+                f"⚠️ ID error after retries: {str(e)}. Trying by name fallback...",
+                level="warning",
+            )
+            try:
+                feature_dataset = Dataset.get(
+                    dataset_name="Deposit Feature Dataset",
+                )
+            except Exception as final_e:
+                task.get_logger().report_text(
+                    f"❌ Final fallback failed: {str(final_e)}", level="error"
+                )
+                raise final_e
 
 local_path = Path(feature_dataset.get_local_copy())
 

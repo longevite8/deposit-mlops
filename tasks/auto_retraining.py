@@ -28,7 +28,7 @@ task = Task.init(
 
 params = task.connect(
     {
-        "alert_task_id": "",  # Wired to alerting step in production_pipeline.py
+        "alert_task_id": "",
     }
 )
 
@@ -97,16 +97,12 @@ new_pipeline.set_parameters(
     }
 )
 
-# =====================================================
-# SỬA: Remove old tags TRƯỚC set_tags() để chắc chắn replace
-# =====================================================
-
 # Xoá tất cả tags cũ trước
 old_tags = new_pipeline.get_tags()
 if old_tags:
-    new_pipeline.remove_tags(old_tags)  # ← Xoá tags cũ
+    new_pipeline.remove_tags(old_tags)
 
-# Giờ set tags mới (sạch sẽ)
+# Giờ set tags mới
 new_pipeline.set_tags(
     [
         "pipeline",
@@ -123,12 +119,12 @@ new_pipeline.set_comment(
 )
 
 # =====================================================
-# SỬA: Multiple flush + longer sleep để ensure server update
+# Multiple flush + longer sleep để ensure server update
 # =====================================================
 
 # Flush 1: Ghi tags & comment
 new_pipeline.flush()
-time.sleep(1)  # ← SỬA: 0.5s → 1s
+time.sleep(1)
 
 # Verify tags từ memory
 task.get_logger().report_text(
@@ -227,7 +223,7 @@ while elapsed_time < max_wait_time:
         time.sleep(wait_interval)
         elapsed_time += wait_interval
 
-# SỬA: Log warning nếu không confirm trong thời gian cho phép
+# Log warning nếu không confirm trong thời gian cho phép
 if not status_confirmed:
     task.get_logger().report_text(
         f"⚠️ Training pipeline status not confirmed within {max_wait_time}s\n"
@@ -263,16 +259,11 @@ task.upload_artifact("retraining_summary", retraining_summary)
 task.upload_artifact("retraining_lineage", retraining_lineage)
 task.upload_artifact("launched_pipeline_id", new_pipeline.id)
 
-# =====================================================
-# Final sync trước close
-# =====================================================
-
 task.get_logger().report_text(
     f"✅ Training pipeline launched successfully: {new_pipeline.id}\n"
     f"   UI URL: {CLEARML_SERVER_URL}/tasks/{new_pipeline.id}"
 )
 
-# Final flush
 new_pipeline.flush()
 time.sleep(1)
 

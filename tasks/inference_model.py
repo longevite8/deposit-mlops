@@ -1,4 +1,3 @@
-import time
 import joblib
 import pandas as pd
 
@@ -15,7 +14,12 @@ from config import (
     FEATURE_COLUMNS,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from helpers import wait_for_artifact
+from business.inference import (
+    run_model_inference,
+    calculate_prediction_statistics,
+    build_output_dataframe,
+)  # THÊM
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -50,7 +54,7 @@ if not params["feature_task_id"]:
 
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+# Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
 feature_dataset_id = wait_for_artifact(
     feature_task,
     "feature_dataset_id",
@@ -61,7 +65,7 @@ feature_dataset_id = wait_for_artifact(
 
 task.get_logger().report_text(f"✅ Feature Dataset ID: {feature_dataset_id}")
 
-# SỬA: Thêm error handling để debug
+# Thêm error handling để debug
 try:
     feature_dataset = Dataset.get(
         dataset_id=feature_dataset_id,
@@ -77,7 +81,7 @@ except ValueError as e:
         level="error",
     )
 
-    # SỬA: Thử lấy dataset từ feature task artifacts
+    # Thử lấy dataset từ feature task artifacts
     try:
         # Lấy tất cả artifacts của feature task
         feature_task_artifacts = feature_task.artifacts
@@ -109,7 +113,7 @@ except ValueError as e:
 
 local_path = Path(feature_dataset.get_local_copy())
 
-# SỬA: Check xem file parquet có tồn tại không
+# Check xem file parquet có tồn tại không
 parquet_file = local_path / "test.parquet"
 if not parquet_file.exists():
     task.get_logger().report_text(
@@ -149,31 +153,30 @@ model = joblib.load(
 )
 
 # =====================================================
-# Predict
+# BUSINESS LOGIC: Begin
 # =====================================================
 
 X = latest_df[FEATURE_COLUMNS]
 
-start_time = time.time()
-prediction = model.predict(X)
-inference_time = time.time() - start_time
-inference_latency_ms = (inference_time / len(X)) * 1000  # ms per sample
+# Gọi logic inference từ business layer
+prediction, inference_time, inference_latency_ms = run_model_inference(model, X)
+
+# Tính toán stats từ business layer
+pred_stats = calculate_prediction_statistics(prediction)
+
+# Xây dựng dataframe kết quả từ business layer
+prediction_df = build_output_dataframe(latest_df, prediction)
+
+# =====================================================
+# BUSINESS LOGIC: End
+# =====================================================
 
 task.get_logger().report_text(
     f"✅ Inference completed: {len(X)} samples in {inference_time:.4f}s"
 )
 
-# =====================================================
-# Build prediction dataframe
-# =====================================================
 
-prediction_df = latest_df.copy()
-prediction_df["prediction"] = prediction
-
-# =====================================================
 # Upload artifact
-# =====================================================
-
 champion_metadata = champion_model.get_all_metadata()
 inference_lineage = {
     "model_id": champion_model.id,
@@ -184,31 +187,26 @@ inference_lineage = {
     "inference_task_id": task.id,
 }
 
-# THÊM: Tạo inference_summary
+# Tạo inference_summary bằng cách trộn kết hợp stats và performance
 inference_summary = {
-    "prediction_mean": float(prediction.mean()),
-    "prediction_std": float(prediction.std()),
-    "prediction_min": float(prediction.min()),
-    "prediction_max": float(prediction.max()),
+    **pred_stats,
     "total_inference_time_sec": float(inference_time),
     "latency_ms_per_sample": float(inference_latency_ms),
     "batch_size": len(X),
 }
 
 task.upload_artifact(name="prediction_df", artifact_object=prediction_df)
-task.upload_artifact("inference_summary", inference_summary)  # THÊM
+task.upload_artifact("inference_summary", inference_summary)
 task.upload_artifact("inference_lineage", inference_lineage)
 
 # =====================================================
-# Log
+# Log & Markdown Dashboard
 # =====================================================
 
-task.get_logger().report_table(
-    title="Prediction",
-    series="prediction_df",
-    iteration=0,
-    table_plot=prediction_df.head(100),
-)
+# Log scalars sử dụng dữ liệu từ inference_summary
+for key, val in inference_summary.items():
+    if key != "batch_size":  # Ví dụ: bỏ qua batch_size nếu đã log riêng
+        task.get_logger().report_single_value(key, val)
 
 # Prediction statistics
 task.get_logger().report_single_value(
@@ -278,7 +276,5 @@ task.get_logger().report_text(
 
 print(prediction_df.tail())
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
-
 task.close()

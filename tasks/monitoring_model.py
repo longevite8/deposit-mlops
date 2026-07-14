@@ -4,15 +4,8 @@ from clearml import (
 )
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_absolute_percentage_error,
-    mean_squared_error,
-    r2_score,
-)
 
 from config import (
     PROJECT_TEMPLATE,
@@ -22,7 +15,14 @@ from config import (
     MONITORING_R2_THRESHOLD,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from helpers import wait_for_artifact
+from business.monitoring import (
+    calculate_monitoring_metrics,
+    check_retraining_condition,
+)  # THÊM
+from business.inference import (
+    calculate_prediction_statistics,
+)  # Tái sử dụng stats từ bước inference nếu cần
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -141,63 +141,30 @@ drift_ratio = drift_summary["drift_ratio"]
 drift_status = drift_summary["status"]
 
 # =====================================================
-# Ground truth
+# Ground truth vs Prediction
 # =====================================================
 
 y_true = actual_df[TARGET_COLUMN]
-
 y_pred = prediction_df["prediction"]
 
-
 # =====================================================
-# Prediction statistics
-# =====================================================
-
-prediction_mean = y_pred.mean()
-
-prediction_std = y_pred.std()
-
-prediction_min = y_pred.min()
-
-prediction_max = y_pred.max()
-
-
-# =====================================================
-# Metrics
+# BUSINESS LOGIC: Begin
 # =====================================================
 
-mape = mean_absolute_percentage_error(
-    y_true,
-    y_pred,
+monitoring_metrics_values = calculate_monitoring_metrics(y_true, y_pred)
+
+pred_stats = calculate_prediction_statistics(y_pred)
+
+need_retraining = check_retraining_condition(
+    metrics=monitoring_metrics_values,
+    drift_status=drift_status,
+    mape_threshold=MONITORING_MAPE_THRESHOLD,
+    r2_threshold=MONITORING_R2_THRESHOLD,
 )
 
-mae = mean_absolute_error(
-    y_true,
-    y_pred,
-)
-
-rmse = np.sqrt(
-    mean_squared_error(
-        y_true,
-        y_pred,
-    )
-)
-
-r2 = r2_score(
-    y_true,
-    y_pred,
-)
-
-
 # =====================================================
-# Decision
+# BUSINESS LOGIC: End
 # =====================================================
-
-need_retraining = (
-    mape > MONITORING_MAPE_THRESHOLD
-    or r2 < MONITORING_R2_THRESHOLD
-    or drift_status == "FAIL"
-)
 
 # =====================================================
 # Monitoring report
@@ -205,34 +172,24 @@ need_retraining = (
 
 monitoring_summary = {
     "status": ("FAIL" if need_retraining else "PASS"),
-    "need_retraining": bool(need_retraining),
+    "need_retraining": need_retraining,
     "drift_status": drift_status,
     "drift_ratio": float(drift_ratio),
-    "model_id": inference_lineage["model_id"],  # SỬA tên biến
+    "model_id": inference_lineage["model_id"],
     "feature_dataset_id": feature_dataset_id,
 }
 
-monitoring_metrics = {
-    "mape": float(mape),
-    "mae": float(mae),
-    "rmse": float(rmse),
-    "r2": float(r2),
-    "prediction_mean": float(prediction_mean),
-    "prediction_std": float(prediction_std),
-    "prediction_min": float(prediction_min),
-    "prediction_max": float(prediction_max),
-}
+monitoring_metrics = {**monitoring_metrics_values, **pred_stats}
 
 monitoring_lineage = {
-    "model_id": inference_lineage["model_id"],  # SỬA tên biến
+    "model_id": inference_lineage["model_id"],
     "feature_dataset_id": feature_dataset_id,
-    "inference_task_id": inference_task.id,  # SỬA tên key cho đúng inference
+    "inference_task_id": inference_task.id,
     "drift_task_id": drift_task.id,
     "monitoring_task_id": task.id,
-    "inference_lineage": inference_lineage,  # SỬA tên biến
+    "inference_lineage": inference_lineage,
     "drift_lineage": drift_lineage,
 }
-
 
 # =====================================================
 # Upload artifact
@@ -252,28 +209,29 @@ task.upload_artifact(
     "monitoring_lineage",
     monitoring_lineage,
 )
+
 # =====================================================
 # Scalars
 # =====================================================
 
 task.get_logger().report_single_value(
     "MAPE",
-    float(mape),
+    float(monitoring_metrics["mape"]),
 )
 
 task.get_logger().report_single_value(
     "MAE",
-    float(mae),
+    float(monitoring_metrics["mae"]),
 )
 
 task.get_logger().report_single_value(
     "RMSE",
-    float(rmse),
+    float(monitoring_metrics["rmse"]),
 )
 
 task.get_logger().report_single_value(
     "R2",
-    float(r2),
+    float(monitoring_metrics["r2"]),
 )
 
 task.get_logger().report_single_value(
@@ -283,22 +241,22 @@ task.get_logger().report_single_value(
 
 task.get_logger().report_single_value(
     "prediction_mean",
-    float(prediction_mean),
+    float(monitoring_metrics["prediction_mean"]),
 )
 
 task.get_logger().report_single_value(
     "prediction_std",
-    float(prediction_std),
+    float(monitoring_metrics["prediction_std"]),
 )
 
 task.get_logger().report_single_value(
     "prediction_min",
-    float(prediction_min),
+    float(monitoring_metrics["prediction_min"]),
 )
 
 task.get_logger().report_single_value(
     "prediction_max",
-    float(prediction_max),
+    float(monitoring_metrics["prediction_max"]),
 )
 
 task.get_logger().report_single_value(
@@ -447,7 +405,6 @@ task.get_logger().report_table(
 
 print(monitoring_summary)
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
-task.flush()
 
+task.flush()
 task.close()

@@ -5,11 +5,9 @@ from clearml import (
     Dataset,
 )
 
-from lightgbm import LGBMRegressor
 from pathlib import Path
 
 import pandas as pd
-import joblib
 
 from config import (
     PROJECT_TEMPLATE,
@@ -19,7 +17,12 @@ from config import (
     TARGET_COLUMN,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from helpers import wait_for_artifact
+from business.train import (
+    train_lgbm_model,
+    calculate_feature_importance,
+    save_model,
+)
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -58,7 +61,7 @@ feature_task = Task.get_task(
     task_id=params["feature_task_id"],
 )
 
-# SỬA: Lấy lineage của feature_task để truy xuất thông tin nguồn gốc
+# Lấy lineage của feature_task để truy xuất thông tin nguồn gốc
 feature_lineage = wait_for_artifact(
     feature_task,
     "feature_lineage",
@@ -116,25 +119,24 @@ task.get_logger().report_text(f"Best params = {best_params}")
 
 
 # =====================================================
-# Train model
+# Train model (REFACTORED)
 # =====================================================
 
 
-# Callback để log loss mỗi epoch
+# Callback để log loss mỗi epoch (Giữ lại ở task layer vì dùng task logger)
 def log_training_metrics(env):
-    """Callback LightGBM để report scalars vào ClearML."""
-    if env.iteration % 10 == 0:  # Log mỗi 10 iterations
+    if env.iteration % 10 == 0:
         task.get_logger().report_scalar(
             title="Training Loss",
             series="iteration",
-            value=env.evaluation_result_list[0][2],  # training loss
+            value=env.evaluation_result_list[0][2],
             iteration=env.iteration,
         )
         if len(env.evaluation_result_list) > 1:
             task.get_logger().report_scalar(
                 title="Validation Loss",
                 series="iteration",
-                value=env.evaluation_result_list[1][2],  # validation loss
+                value=env.evaluation_result_list[1][2],
                 iteration=env.iteration,
             )
 
@@ -145,31 +147,30 @@ callbacks = [
     log_training_metrics,
 ]
 
-model = LGBMRegressor(
-    n_estimators=best_params["n_estimators"],
-    learning_rate=best_params["learning_rate"],
-    num_leaves=best_params["num_leaves"],
-    random_state=RANDOM_STATE,
-    verbose=-1,
-)
+# =====================================================
+# BUSINESS LOGIC: Begin
+# =====================================================
 
-model.fit(
-    X_train,
-    y_train,
-    eval_set=[(X_valid, y_valid)],
+model = train_lgbm_model(
+    X_train=X_train,
+    y_train=y_train,
+    X_valid=X_valid,
+    y_valid=y_valid,
+    best_params=best_params,
+    random_state=RANDOM_STATE,
     callbacks=callbacks,
 )
 
 
-# =====================================================
-# Save model
-# =====================================================
+# Feature importance
+split_importance, gain_importance = calculate_feature_importance(model, FEATURE_COLUMNS)
 
-joblib.dump(
-    model,
-    "model.pkl",
-)
+# Lưu mô hình local
+save_model(model, "model.pkl")
 
+# =====================================================
+# BUSINESS LOGIC: End
+# =====================================================
 
 # =====================================================
 # Register output model
@@ -197,7 +198,7 @@ output_model.set_metadata(
     task.id,
 )
 
-# SỬA: Truy vết raw_dataset_id từ extract_task thông qua feature_lineage
+# Truy vết raw_dataset_id từ extract_task thông qua feature_lineage
 extract_task_id = feature_lineage["extract_task_id"]
 extract_task = Task.get_task(task_id=extract_task_id)
 extract_summary = wait_for_artifact(
@@ -233,31 +234,8 @@ task.upload_artifact(
     raw_dataset_id,
 )
 
-# =====================================================
-# Feature importance
-# =====================================================
 
-split_importance = pd.DataFrame(
-    {
-        "feature": FEATURE_COLUMNS,
-        "split_importance": model.booster_.feature_importance(importance_type="split"),
-    }
-).sort_values(
-    "split_importance",
-    ascending=False,
-)
-
-gain_importance = pd.DataFrame(
-    {
-        "feature": FEATURE_COLUMNS,
-        "gain_importance": model.booster_.feature_importance(importance_type="gain"),
-    }
-).sort_values(
-    "gain_importance",
-    ascending=False,
-)
-
-# Report feature importance scalars
+# Report feature importance scalars (Giữ phần report ở task layer)
 task.get_logger().report_table(
     title="Feature Importance (Split)",
     series="importance",
@@ -326,21 +304,6 @@ task.upload_artifact(
     model_card,
 )
 
-task.get_logger().report_text(
-    f"""
-    Raw Dataset      : {raw_dataset_id}
-    Feature Dataset  : {feature_dataset_id}
-    Training rows    : {len(df_train)}
-    """
-)
-
-task.get_logger().report_text("Training completed.")
-
-print("Training completed.")
-
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
-task.flush()
-
 # =====================================================
 # Training summary & lineage
 # =====================================================
@@ -359,4 +322,21 @@ train_lineage = {
 task.upload_artifact("train_summary", train_summary)
 task.upload_artifact("train_lineage", train_lineage)
 
+# =====================================================
+# Log
+# =====================================================
+
+task.get_logger().report_text(
+    f"""
+    Raw Dataset      : {raw_dataset_id}
+    Feature Dataset  : {feature_dataset_id}
+    Training rows    : {len(df_train)}
+    """
+)
+
+task.get_logger().report_text("Training completed.")
+
+print("Training completed.")
+
+task.flush()
 task.close()

@@ -3,10 +3,12 @@ from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_percentage_error
 
 
-def run_hpo_optimization(X_train, y_train, X_valid, y_valid, n_trials, random_state):
+def run_hpo_optimization(
+    X_train, y_train, X_valid, y_valid, n_trials, random_state, callbacks=None
+):
     """
     Thực hiện tối ưu hóa Hyperparameters bằng Optuna.
-    Hàm này hoàn toàn độc lập với ClearML Task.
+    Chấp nhận danh sách callbacks để thực hiện các hành động bổ sung sau mỗi trial (như logging).
     """
 
     def objective(trial: optuna.Trial) -> float:
@@ -30,6 +32,7 @@ def run_hpo_optimization(X_train, y_train, X_valid, y_valid, n_trials, random_st
         sampler=optuna.samplers.TPESampler(seed=random_state),
     )
 
-    study.optimize(objective, n_trials=n_trials)
+    # Truyền callbacks vào đây
+    study.optimize(objective, n_trials=n_trials, callbacks=callbacks)
 
     return study

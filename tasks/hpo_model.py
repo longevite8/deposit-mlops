@@ -83,6 +83,25 @@ X_valid = valid_df[FEATURE_COLUMNS]
 y_valid = valid_df[TARGET_COLUMN]
 
 # =====================================================
+# Definie Callback for Logging to ClearML
+# =====================================================
+
+
+def clearml_hpo_callback(study, trial):
+    """
+    Callback function chạy sau mỗi trial của Optuna.
+    Gửi giá trị MAPE của trial hiện tại lên ClearML.
+    """
+    if trial.value is not None:
+        task.get_logger().report_scalar(
+            title="HPO Trials", series="MAPE", value=trial.value, iteration=trial.number
+        )
+        task.get_logger().report_text(
+            f"Trial {trial.number} finished with value: {trial.value} and parameters: {trial.params}"
+        )
+
+
+# =====================================================
 # BUSINESS LOGIC: Begin
 # =====================================================
 
@@ -93,6 +112,7 @@ study = run_hpo_optimization(
     y_valid=y_valid,
     n_trials=N_TRIALS,
     random_state=RANDOM_STATE,
+    callbacks=[clearml_hpo_callback],  # Truyền callback vào đây
 )
 
 # =====================================================

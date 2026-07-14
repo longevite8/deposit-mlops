@@ -1,5 +1,4 @@
 import joblib
-import numpy as np
 import pandas as pd
 
 from clearml import (
@@ -9,12 +8,6 @@ from clearml import (
 )
 from pathlib import Path
 
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_absolute_percentage_error,
-    mean_squared_error,
-    r2_score,
-)
 
 from config import (
     FEATURE_COLUMNS,
@@ -25,7 +18,8 @@ from config import (
     TEMPLATE_EVALUATE_NAME,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from helpers import wait_for_artifact
+from business.evaluate import calculate_evaluation_metrics, check_quality_gate
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -62,7 +56,7 @@ feature_task = Task.get_task(
     task_id=params["feature_task_id"],
 )
 
-# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
+# Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
 feature_dataset_id = wait_for_artifact(
     feature_task,
     "feature_dataset_id",
@@ -103,67 +97,30 @@ model = joblib.load(model_path)
 
 y_pred = model.predict(X_test)
 
-
 # =====================================================
-# Metrics
-# =====================================================
-
-mape = mean_absolute_percentage_error(
-    y_true,
-    y_pred,
-)
-
-mae = mean_absolute_error(
-    y_true,
-    y_pred,
-)
-
-rmse = np.sqrt(
-    mean_squared_error(
-        y_true,
-        y_pred,
-    )
-)
-
-r2 = r2_score(
-    y_true,
-    y_pred,
-)
-
-
-# =====================================================
-# Quality gate
+# BUSINESS LOGIC: Begin
 # =====================================================
 
-passed = mape <= mape_threshold and r2 >= r2_threshold
+# Gọi logic tính toán từ business layer
+metrics = calculate_evaluation_metrics(y_true, y_pred)
 
+# Kiểm tra Quality Gate từ business layer
+passed = check_quality_gate(metrics, mape_threshold, r2_threshold)
+
+# =====================================================
+# BUSINESS LOGIC: End
+# =====================================================
 
 # =====================================================
 # Upload evaluation result
 # =====================================================
 
-raw_dataset_id = train_task.artifacts["raw_dataset_id"].get()
-
-task.upload_artifact(
-    "raw_dataset_id",
-    raw_dataset_id,
-)
-
-task.upload_artifact(
-    "feature_dataset_id",
-    feature_dataset_id,
-)
-
 evaluate_summary = {
-    "Feature Dataset": feature_dataset_id,
-    "Raw Dataset": raw_dataset_id,
-    "mape": float(mape),
-    "mae": float(mae),
-    "rmse": float(rmse),
-    "r2": float(r2),
-    "passed": bool(passed),
+    "feature_dataset_id": feature_dataset_id,
+    "passed": passed,
     "mape_threshold": mape_threshold,
     "r2_threshold": r2_threshold,
+    **metrics,  # Trộn các metrics (mape, mae, rmse, r2) vào summary
 }
 
 evaluate_lineage = {
@@ -173,6 +130,7 @@ evaluate_lineage = {
     "model_id": model_id,
     "feature_dataset_id": feature_dataset_id,
 }
+
 task.upload_artifact("evaluate_summary", evaluate_summary)
 task.upload_artifact("evaluate_lineage", evaluate_lineage)
 
@@ -180,25 +138,13 @@ task.upload_artifact("evaluate_lineage", evaluate_lineage)
 # Scalars
 # =====================================================
 
-task.get_logger().report_single_value("mape", float(mape))
-
-task.get_logger().report_single_value("mae", float(mae))
-
-task.get_logger().report_single_value("rmse", float(rmse))
-
-task.get_logger().report_single_value("r2", float(r2))
-
-task.get_logger().report_single_value("mape_threshold", mape_threshold)
-
-task.get_logger().report_single_value("r2_threshold", r2_threshold)
+# Log các chỉ số lên bảng điều khiển ClearML
+for metric_name, metric_value in metrics.items():
+    task.get_logger().report_single_value(metric_name, metric_value)
 
 task.get_logger().report_single_value("quality_gate_passed", int(passed))
+task.get_logger().report_text(f"Evaluation completed. Passed: {passed}")
 
-task.get_logger().report_text(f"Evaluation result = {evaluate_summary}")
 
-print(evaluate_summary)
-
-# Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
-
 task.close()

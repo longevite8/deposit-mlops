@@ -8,7 +8,8 @@ from config import (
     TEMPLATE_COMPARE_CHAMPION_NAME,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from helpers import wait_for_artifact
+from business.compare_model import compare_model_performance
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -43,7 +44,7 @@ register_task = Task.get_task(
     task_id=params["register_task_id"],
 )
 
-# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+# Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
 register_summary = wait_for_artifact(
     register_task,
     "register_summary",
@@ -94,8 +95,7 @@ if not register_summary.get("published", False):
 # Candidate metrics
 # =====================================================
 
-candidate_mape = register_summary["mape"]
-candidate_r2 = register_summary["r2"]
+candidate_metrics = {"mape": register_summary["mape"], "r2": register_summary["r2"]}
 
 # =====================================================
 # Current champion
@@ -133,36 +133,43 @@ if len(champion_models) == 0:
 champion_model = champion_models[0]
 champion_model_id = champion_model.id
 champion_metadata = champion_model.get_all_metadata()
-champion_mape = float(champion_metadata["mape"]["value"])
-champion_r2 = float(champion_metadata["r2"]["value"])
+
+# Trích xuất metrics của champion từ metadata
+champion_metrics = {
+    "mape": float(champion_metadata["mape"]["value"]),
+    "r2": float(champion_metadata["r2"]["value"]),
+}
 
 # =====================================================
-# Compare logic
+# BUSINESS LOGIC: Begin
 # =====================================================
 
-candidate_win = candidate_mape < champion_mape and candidate_r2 > champion_r2
+candidate_win = compare_model_performance(candidate_metrics, champion_metrics)
+
+# =====================================================
+# BUSINESS LOGIC: End
+# =====================================================
 
 # =====================================================
 # Upload artifacts
 # =====================================================
 
-# 1. Summary Artifact
+# Summary Artifact
 compare_summary = {
     "candidate_win": candidate_win,
     "candidate_model_id": candidate_model_id,
     "champion_model_id": champion_model_id,
-    "comparison_metric": "mape",
+    "candidate_metrics": candidate_metrics,
+    "champion_metrics": champion_metrics,
     "status": "SUCCESS",
 }
 task.upload_artifact("compare_summary", compare_summary)
 
-# 2. Lineage Artifact
+# Lineage Artifact
 compare_lineage["champion_model_id"] = champion_model_id
 task.upload_artifact("compare_lineage", compare_lineage)
 
 task.get_logger().report_text(f"✅ Compare Champion completed. Win: {candidate_win}")
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
-
 task.close()

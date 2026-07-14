@@ -170,10 +170,15 @@ else:
 
 
 # =====================================================
-# Drift detection (Kolmogorov–Smirnov test)
+# BUSINESS LOGIC: BEGIN
 # =====================================================
 
 drift_result = monitor_drift(reference_df, current_df)
+
+# =====================================================
+# BUSINESS LOGIC: END
+# =====================================================
+
 
 for drift_feature in drift_result["drift_data"]:
     task.get_logger().report_scalar(
@@ -225,104 +230,6 @@ for drift_feature in drift_result["drift_data"]:
 # =====================================================
 
 drift_table = pd.DataFrame(drift_result["drift_data"]).sort_values("p_value")
-
-
-# # =====================================================
-# # Drift detection (Kolmogorov–Smirnov test)
-# # =====================================================
-# drift_result = {}
-# drift_rows = []
-# n_drift_features = 0
-
-# for col in FEATURE_COLUMNS:
-#     statistic, p_value = ks_2samp(
-#         reference_df[col],
-#         current_df[col],
-#     )
-
-#     is_drift = p_value < DRIFT_PVALUE_THRESHOLD
-
-#     if is_drift:
-#         n_drift_features += 1
-
-#     drift_result[col] = {
-#         "ks_statistic": float(statistic),
-#         "p_value": float(p_value),
-#         "drift": bool(is_drift),
-#     }
-
-#     drift_rows.append(
-#         {
-#             "feature": col,
-#             "ks_statistic": statistic,
-#             "p_value": p_value,
-#             "drift": is_drift,
-#         }
-#     )
-
-#     task.get_logger().report_scalar(
-#         title="KS Statistic",
-#         series=col,
-#         value=statistic,
-#         iteration=0,
-#     )
-
-#     task.get_logger().report_scalar(
-#         title="P Value",
-#         series=col,
-#         value=p_value,
-#         iteration=0,
-#     )
-
-#     # ------------------------------------------------
-#     # Histogram for drift features only
-#     # ------------------------------------------------
-
-#     if is_drift:
-#         train_hist, bins = np.histogram(
-#             reference_df[col],
-#             bins=20,
-#         )
-
-#         test_hist, _ = np.histogram(
-#             current_df[col],
-#             bins=bins,
-#         )
-
-#         task.get_logger().report_histogram(
-#             title=f"{col} distribution",
-#             series="reference",
-#             values=train_hist,
-#             iteration=0,
-#         )
-
-#         task.get_logger().report_histogram(
-#             title=f"{col} distribution",
-#             series="current",
-#             values=test_hist,
-#             iteration=0,
-#         )
-
-
-# # =====================================================
-# # Drift summary
-# # =====================================================
-
-# drift_ratio = n_drift_features / len(FEATURE_COLUMNS)
-
-# # Tối ưu logic check bằng cách sử dụng constants và mảng levels
-# if drift_ratio < DRIFT_RATIO_WARNING_THRESHOLD:
-#     status = DRIFT_STATUS_LEVELS[0]  # "PASS"
-# elif drift_ratio < DRIFT_RATIO_THRESHOLD:
-#     status = DRIFT_STATUS_LEVELS[1]  # "WARNING"
-# else:
-#     status = DRIFT_STATUS_LEVELS[2]  # "FAIL"
-
-# drift_table = pd.DataFrame(drift_rows).sort_values("p_value")
-
-# max_drift_feature = drift_table.iloc[0]["feature"]
-# min_p_value = float(drift_table.iloc[0]["p_value"])
-
 
 drift_summary = {
     "status": drift_result["status"],

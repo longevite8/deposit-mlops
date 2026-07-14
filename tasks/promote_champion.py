@@ -42,7 +42,7 @@ if not params["compare_task_id"]:
 
 compare_task = Task.get_task(task_id=params["compare_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
+# Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
 compare_summary = wait_for_artifact(
     compare_task,
     "compare_summary",
@@ -245,7 +245,6 @@ task.get_logger().report_text(
     """
 )
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
-task.flush()
 
+task.flush()
 task.close()

@@ -328,6 +328,7 @@ drift_summary = {
     "status": drift_result["status"],
     "drift_ratio": drift_result["drift_ratio"],
     "n_features": drift_result["n_features"],
+    "n_drift_features": drift_result["n_drift_features"],
     "drift_details": drift_result["drift_data"],
 }
 drift_lineage = {

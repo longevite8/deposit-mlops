@@ -56,7 +56,7 @@ def monitor_drift(reference_df: pd.DataFrame, current_df: pd.DataFrame) -> dict:
 
     drift_result = {
         "status": status,
-        "number_features": len(FEATURE_COLUMNS),
+        "n_features": len(FEATURE_COLUMNS),
         "n_drift_features": n_drift_features,
         "drift_ratio": drift_ratio,
         "drift_data": drift_rows,

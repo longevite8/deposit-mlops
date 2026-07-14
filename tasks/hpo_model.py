@@ -1,13 +1,7 @@
-import optuna
 from pathlib import Path
 
 import pandas as pd
 from clearml import Dataset, Task
-from lightgbm import LGBMRegressor
-from sklearn.metrics import (
-    mean_absolute_percentage_error,
-    r2_score,
-)
 
 from config import (
     FEATURE_COLUMNS,
@@ -18,7 +12,8 @@ from config import (
     TEMPLATE_HPO_NAME,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from business.hpo import run_hpo_optimization
+from helpers import wait_for_artifact
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -56,7 +51,6 @@ if not params["feature_task_id"]:
 
 feature_task = Task.get_task(task_id=params["feature_task_id"])
 
-# SỬA: Sử dụng feature_lineage để lấy feature_dataset_id
 feature_lineage = wait_for_artifact(
     feature_task,
     "feature_lineage",
@@ -88,84 +82,22 @@ X_valid = valid_df[FEATURE_COLUMNS]
 
 y_valid = valid_df[TARGET_COLUMN]
 
-
 # =====================================================
-# Objective
-# =====================================================
-
-
-def objective(trial: optuna.Trial) -> float:
-    """Optuna objective: train LGBMRegressor and return validation MAPE."""
-    model_params = {
-        "learning_rate": trial.suggest_float(
-            "learning_rate",
-            0.01,
-            0.1,
-            log=True,
-        ),
-        "num_leaves": trial.suggest_int(
-            "num_leaves",
-            15,
-            100,
-        ),
-        "n_estimators": trial.suggest_int(
-            "n_estimators",
-            100,
-            1000,
-        ),
-        "random_state": RANDOM_STATE,
-    }
-
-    model = LGBMRegressor(**model_params)
-
-    model.fit(
-        X_train,
-        y_train,
-    )
-
-    y_pred = model.predict(X_valid)
-
-    mape = mean_absolute_percentage_error(
-        y_valid,
-        y_pred,
-    )
-
-    r2 = r2_score(
-        y_valid,
-        y_pred,
-    )
-
-    task.get_logger().report_scalar(
-        title="MAPE",
-        series="trial",
-        value=mape,
-        iteration=trial.number,
-    )
-
-    task.get_logger().report_scalar(
-        title="R2",
-        series="trial",
-        value=r2,
-        iteration=trial.number,
-    )
-
-    return mape
-
-
-# =====================================================
-# Run study
+# BUSINESS LOGIC: Begin
 # =====================================================
 
-study = optuna.create_study(
-    direction="minimize",
-    sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE),
-)
-
-study.optimize(
-    objective,
+study = run_hpo_optimization(
+    X_train=X_train,
+    y_train=y_train,
+    X_valid=X_valid,
+    y_valid=y_valid,
     n_trials=N_TRIALS,
+    random_state=RANDOM_STATE,
 )
 
+# =====================================================
+# BUSINESS LOGIC: End
+# =====================================================
 
 # =====================================================
 # Best params
@@ -222,7 +154,6 @@ print(
     best_params,
 )
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
-task.flush()
 
+task.flush()
 task.close()

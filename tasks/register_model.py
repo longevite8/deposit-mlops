@@ -47,7 +47,6 @@ if not params["train_task_id"] or not params["evaluate_task_id"]:
 
 evaluate_task = Task.get_task(task_id=params["evaluate_task_id"])
 
-# SỬA: Artifact name từ "evaluation_result" -> "evaluate_summary"
 evaluate_summary = wait_for_artifact(
     evaluate_task,
     "evaluate_summary",
@@ -76,7 +75,7 @@ registered_model = Model(model_id=model_id)
 
 metadata = registered_model.get_all_metadata()
 
-# SỬA: Dùng wait_for_metadata để chắc chắn metadata sẵn sàng
+# Dùng wait_for_metadata để chắc chắn metadata sẵn sàng
 feature_dataset_id = wait_for_metadata(
     metadata,
     "feature_dataset_id",
@@ -95,7 +94,8 @@ hpo_task_id = train_params.get("General/hpo_task_id")
 
 # =====================================================
 # Publish model
-# SỬA: Sử dụng evaluate_summary thay cho evaluation_result
+# =====================================================
+
 published = evaluate_summary["passed"]
 if published:
     mape = evaluate_summary["mape"]
@@ -205,7 +205,5 @@ task.upload_artifact(
 
 task.get_logger().report_text(f"Feature Dataset = {feature_dataset_id}")
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
-
 task.close()

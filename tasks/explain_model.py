@@ -21,7 +21,7 @@ from config import (
     N_SHAP_SAMPLES,
 )
 
-from helpers import wait_for_artifact  # THÊM: Import từ helper
+from helpers import wait_for_artifact
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -87,7 +87,7 @@ task.get_logger().report_text("Loading trained model...")
 
 train_task = Task.get_task(task_id=params["train_task_id"])
 
-# SỬA: Dùng wait_for_artifact để chắc chắn model ID sẵn sàng
+# Dùng wait_for_artifact để chắc chắn model ID sẵn sàng
 model_id = wait_for_artifact(
     train_task,
     "model_id",
@@ -287,7 +287,5 @@ task.get_logger().report_text(
 
 print(explain_summary)
 
-# THÊM: Đồng bộ hoàn toàn trước khi kết thúc
 task.flush()
-
 task.close()

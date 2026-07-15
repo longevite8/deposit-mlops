@@ -168,11 +168,14 @@ task.get_logger().report_text(
 
 task.flush()
 
+# THÊM: Chờ server đồng bộ Task trước khi tạo Dataset
+time.sleep(3)
+
 # =====================================================
 # Build Feature Dataset (with retry logic)
 # =====================================================
 
-max_retries = 3
+max_retries = 5
 feature_dataset = None
 
 for attempt in range(max_retries):
@@ -187,49 +190,52 @@ for attempt in range(max_retries):
             parent_datasets=[raw_dataset],
         )
 
-        task.get_logger().report_text(
-            f"✅ Feature dataset created: {feature_dataset.id}"
-        )
-        break
+        feature_dataset.add_files(tmp_dir)
+
+        task.get_logger().report_text("📤 Uploading dataset files...")
+        feature_dataset.upload()
+
+        task.get_logger().report_text("📌 Finalizing dataset...")
+        feature_dataset.finalize()
+
+        task.get_logger().report_text(f"✅ Dataset finalized: {feature_dataset.id}")
+        break  # Thành công thì thoát
 
     except Exception as e:
+        task.get_logger().report_text(
+            f"⚠️ Attempt {attempt + 1} failed: {str(e)}",
+            level="warning",
+        )
+
         if attempt < max_retries - 1:
+            wait_sec = (attempt + 1) * 3  # Backoff: 3s, 6s, 9s, 12s
             task.get_logger().report_text(
-                f"⚠️ Attempt {attempt + 1} failed: {str(e)}\n"
-                f"   Retrying in 2 seconds...",
+                f"   Retrying in {wait_sec}s...",
                 level="warning",
             )
-            time.sleep(2)
+            time.sleep(wait_sec)
         else:
             task.get_logger().report_text(
                 f"⚠️ Cannot create new dataset after {max_retries} attempts.\n"
-                f"   Getting existing dataset by name...",
+                f"   Falling back to latest finalized version...",
                 level="warning",
             )
-            feature_dataset = Dataset.get(
-                dataset_project=PROJECT_DATASET,
-                dataset_name="Deposit Feature Dataset",
-            )
-            task.get_logger().report_text(
-                f"✅ Using existing feature dataset: {feature_dataset.id}"
-            )
+            try:
+                feature_dataset = Dataset.get(
+                    dataset_project=PROJECT_DATASET,
+                    dataset_name="Deposit Feature Dataset",
+                )
+                task.get_logger().report_text(
+                    f"✅ Using existing feature dataset: {feature_dataset.id}"
+                )
+            except Exception as final_e:
+                task.get_logger().report_text(
+                    f"❌ Final fallback failed: {str(final_e)}", level="error"
+                )
+                raise final_e
 
 if not feature_dataset:
-    raise ValueError("Could not create or get feature dataset")
-
-# =====================================================
-# Add files and upload Dataset
-# =====================================================
-
-feature_dataset.add_files(tmp_dir)
-
-task.get_logger().report_text("📤 Uploading dataset files...")
-feature_dataset.upload()
-
-task.get_logger().report_text("📌 Finalizing dataset...")
-feature_dataset.finalize()
-
-task.get_logger().report_text(f"✅ Dataset finalized: {feature_dataset.id}")
+    raise ValueError("Could not create or get feature dataset after all retries.")
 
 feature_summary = {
     "feature_dataset_id": feature_dataset.id,

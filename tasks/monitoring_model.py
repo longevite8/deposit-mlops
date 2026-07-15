@@ -184,11 +184,10 @@ monitoring_metrics = {**monitoring_metrics_values, **pred_stats}
 monitoring_lineage = {
     "model_id": inference_lineage["model_id"],
     "feature_dataset_id": feature_dataset_id,
+    "feature_task_id": feature_task.id,
     "inference_task_id": inference_task.id,
     "drift_task_id": drift_task.id,
     "monitoring_task_id": task.id,
-    "inference_lineage": inference_lineage,
-    "drift_lineage": drift_lineage,
 }
 
 # =====================================================

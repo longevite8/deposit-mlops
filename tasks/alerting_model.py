@@ -55,7 +55,7 @@ monitoring_task = Task.get_task(task_id=params["monitoring_task_id"])
 monitoring_summary = wait_for_artifact(monitoring_task, "monitoring_summary")
 monitoring_lineage = wait_for_artifact(monitoring_task, "monitoring_lineage")
 
-drift_task = Task.get_task(task_id=params["drift_task_id"])
+drift_task = Task.get_task(task_id=monitoring_lineage["drift_task_id"])
 drift_summary = wait_for_artifact(drift_task, "drift_summary")
 
 monitoring_metrics = wait_for_artifact(

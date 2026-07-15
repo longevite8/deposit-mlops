@@ -168,9 +168,7 @@ REQUIRED_COLUMNS = FEATURE_COLUMNS + [TARGET_COLUMN]
 ALERT_SMTP_HOST = "smtp.gmail.com"
 ALERT_SMTP_PORT = 587
 ALERT_SMTP_USER = "longevite8@gmail.com"
-ALERT_SMTP_PASSWORD = os.environ.get(
-    "CLEARML_ALERT_SMTP_PASSWORD", ""
-)  # Never hardcode — use env var!
+ALERT_SMTP_PASSWORD = os.environ.get("CLEARML_ALERT_SMTP_PASSWORD", "")
 ALERT_EMAIL_FROM = "longevite8@gmail.com"
 ALERT_EMAIL_TO = ["thonq@vega.com.vn"]
 ALERT_EMAIL_SUBJECT_PREFIX = "[CashFlow MLOps Alert]"

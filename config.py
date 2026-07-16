@@ -219,34 +219,71 @@ TEMPLATE_EXPLAIN_NAME = "Explain Model"
 # Template Task IDs (Populated by register_templates.py)
 # =====================================================
 
-TEMPLATE_EXTRACT_ID = "1936041b1a3f453aa99b815f5d1c5c8d"
-TEMPLATE_FEATURE_ID = "a944fe9e014a4013a37453782dbd6fbc"
-TEMPLATE_VALIDATE_ID = "09d7c67031e24577b86bfaaf8ab70276"
-TEMPLATE_DRIFT_ID = "81a0703317934b088c9bede78f365617"
-TEMPLATE_HPO_ID = "e191d1910f3f49ab8f209b1045a5ac21"
-TEMPLATE_TRAIN_ID = "914aa57881cf41f6ad09617a597ec888"
-TEMPLATE_EVALUATE_ID = "fe4c8be1a64a4ac7a37f6201ff9b8093"
-TEMPLATE_REGISTER_ID = "86b25ce552d94b15b43faa47a6acc07c"
-TEMPLATE_COMPARE_CHAMPION_ID = "7db02b943ecc415da3f26b4b0197c31e"
-TEMPLATE_PROMOTE_CHAMPION_ID = "fc26470c7daa471d8000e0ac5e12de62"
-TEMPLATE_INFERENCE_ID = "74ca019210f947479918df99fce38f93"
-TEMPLATE_MONITORING_ID = "c3b5ef6d0fb444d68fc28a5fbaa025e5"
-TEMPLATE_ALERTING_ID = "abc34a08a9d441e7916c67c047a08b13"
-TEMPLATE_AUTO_RETRAINING_ID = "d83bb13dd70542268b47e2748c3fb6fb"
-TEMPLATE_EXPLAIN_ID = "ed552b304e14400785da48c0fa0450b5"
 
-TRAINING_PIPELINE_ID = "e5f83834496a445ab525e4f46219faf9"
+def env_template_id(name, default):
+    """Read a ClearML template ID from the environment with legacy fallback."""
+
+    return os.getenv(name, default)
+
+
+TEMPLATE_EXTRACT_ID = env_template_id(
+    "TEMPLATE_EXTRACT_ID", "1936041b1a3f453aa99b815f5d1c5c8d"
+)
+TEMPLATE_FEATURE_ID = env_template_id(
+    "TEMPLATE_FEATURE_ID", "a944fe9e014a4013a37453782dbd6fbc"
+)
+TEMPLATE_VALIDATE_ID = env_template_id(
+    "TEMPLATE_VALIDATE_ID", "09d7c67031e24577b86bfaaf8ab70276"
+)
+TEMPLATE_DRIFT_ID = env_template_id(
+    "TEMPLATE_DRIFT_ID", "81a0703317934b088c9bede78f365617"
+)
+TEMPLATE_HPO_ID = env_template_id(
+    "TEMPLATE_HPO_ID", "e191d1910f3f49ab8f209b1045a5ac21"
+)
+TEMPLATE_TRAIN_ID = env_template_id(
+    "TEMPLATE_TRAIN_ID", "914aa57881cf41f6ad09617a597ec888"
+)
+TEMPLATE_EVALUATE_ID = env_template_id(
+    "TEMPLATE_EVALUATE_ID", "fe4c8be1a64a4ac7a37f6201ff9b8093"
+)
+TEMPLATE_REGISTER_ID = env_template_id(
+    "TEMPLATE_REGISTER_ID", "86b25ce552d94b15b43faa47a6acc07c"
+)
+TEMPLATE_COMPARE_CHAMPION_ID = env_template_id(
+    "TEMPLATE_COMPARE_CHAMPION_ID", "7db02b943ecc415da3f26b4b0197c31e"
+)
+TEMPLATE_PROMOTE_CHAMPION_ID = env_template_id(
+    "TEMPLATE_PROMOTE_CHAMPION_ID", "fc26470c7daa471d8000e0ac5e12de62"
+)
+TEMPLATE_INFERENCE_ID = env_template_id(
+    "TEMPLATE_INFERENCE_ID", "74ca019210f947479918df99fce38f93"
+)
+TEMPLATE_MONITORING_ID = env_template_id(
+    "TEMPLATE_MONITORING_ID", "c3b5ef6d0fb444d68fc28a5fbaa025e5"
+)
+TEMPLATE_ALERTING_ID = env_template_id(
+    "TEMPLATE_ALERTING_ID", "abc34a08a9d441e7916c67c047a08b13"
+)
+TEMPLATE_AUTO_RETRAINING_ID = env_template_id(
+    "TEMPLATE_AUTO_RETRAINING_ID", "d83bb13dd70542268b47e2748c3fb6fb"
+)
+TEMPLATE_EXPLAIN_ID = env_template_id(
+    "TEMPLATE_EXPLAIN_ID", "ed552b304e14400785da48c0fa0450b5"
+)
+
+TRAINING_PIPELINE_ID = os.getenv(
+    "TRAINING_PIPELINE_ID", "e5f83834496a445ab525e4f46219faf9"
+)
 # =====================================================
 # Utility Functions
 # =====================================================
 
 
-def validate_config():
-    """
-    Validate that all required template IDs are populated.
-    Call this at the start of pipeline scripts.
-    """
-    required_ids = {
+def template_id_map():
+    """Return all template IDs configured for the project."""
+
+    return {
         "TEMPLATE_EXTRACT_ID": TEMPLATE_EXTRACT_ID,
         "TEMPLATE_FEATURE_ID": TEMPLATE_FEATURE_ID,
         "TEMPLATE_VALIDATE_ID": TEMPLATE_VALIDATE_ID,
@@ -263,6 +300,14 @@ def validate_config():
         "TEMPLATE_AUTO_RETRAINING_ID": TEMPLATE_AUTO_RETRAINING_ID,
         "TEMPLATE_EXPLAIN_ID": TEMPLATE_EXPLAIN_ID,
     }
+
+
+def validate_config(required_ids=None):
+    """
+    Validate that all required template IDs are populated.
+    Call this at the start of pipeline scripts.
+    """
+    required_ids = required_ids or template_id_map()
 
     missing = [k for k, v in required_ids.items() if not v]
     if missing:

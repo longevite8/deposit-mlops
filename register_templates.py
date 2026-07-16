@@ -1,5 +1,4 @@
 import os
-import re
 from pathlib import Path
 from dotenv import load_dotenv
 from clearml import Task
@@ -41,6 +40,35 @@ if not GIT_REPO:
     )
 
 print(f"✅ Using GIT_REPO: {GIT_REPO}")
+
+
+def update_env_file(env_file: Path, values: dict[str, str]) -> None:
+    """Upsert generated ClearML IDs into the local ignored .env file."""
+
+    existing_lines = []
+    if env_file.exists():
+        existing_lines = env_file.read_text(encoding="utf-8").splitlines()
+
+    remaining = dict(values)
+    updated_lines = []
+    for line in existing_lines:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#") or "=" not in line:
+            updated_lines.append(line)
+            continue
+
+        key = line.split("=", 1)[0].strip()
+        if key in remaining:
+            updated_lines.append(f"{key}={remaining.pop(key)}")
+        else:
+            updated_lines.append(line)
+
+    if remaining and updated_lines and updated_lines[-1].strip():
+        updated_lines.append("")
+    for key, value in remaining.items():
+        updated_lines.append(f"{key}={value}")
+
+    env_file.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
 
 # Mảng mapping giữa Tên Template, Loại Task, Script và Tên biến trong config.py
 templates = [
@@ -157,18 +185,9 @@ for name, task_type, script, config_var in templates:
     print(f"✅ Created {name}: {task.id}")
 
 # =====================================================
-# Tự động cập nhật config.py
+# Tự động cập nhật .env cục bộ (không commit ClearML IDs mới vào code)
 # =====================================================
 
-config_path = Path(__file__).parent / "config.py"
-config_content = config_path.read_text(encoding="utf-8")
-
-for var_name, new_id in new_ids.items():
-    # Sử dụng Regex để tìm biến và thay thế giá trị trong dấu ngoặc kép
-    pattern = rf'({var_name}\s*=\s*")[^"]*(")'
-    # SỬA: Sử dụng \g<1> và \g<2> để tránh xung đột khi new_id bắt đầu bằng chữ số
-    replacement = rf"\g<1>{new_id}\g<2>"
-    config_content = re.sub(pattern, replacement, config_content)
-
-config_path.write_text(config_content, encoding="utf-8")
-print(f"\n🚀 Successfully updated {len(new_ids)} IDs in config.py")
+update_env_file(env_path, new_ids)
+print(f"\n🚀 Successfully updated {len(new_ids)} template IDs in {env_path}")
+print("   Keep .env local; do not commit generated ClearML resource IDs.")

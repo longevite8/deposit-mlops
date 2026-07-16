@@ -51,14 +51,14 @@ DB_USER = os.getenv("DB_USER", "vega")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", "5432"))
-DB_NAME = os.getenv("DB_NAME", "vc_mco")
+DB_NAME = os.getenv("DB_NAME", "vc_mco_dev")
 DB_SCHEMA = os.getenv("DB_SCHEMA", "public")
 
-SOURCE_PROJECT_NAME = os.getenv("SOURCE_PROJECT_NAME", "")
+SOURCE_PROJECT_NAME = os.getenv("SOURCE_PROJECT_NAME", "Tin Vay")
 SOURCE_FLOW_TYPE = os.getenv("SOURCE_FLOW_TYPE", "Vào")
 SOURCE_APPROVAL_STATUS = os.getenv("SOURCE_APPROVAL_STATUS", "Đã duyệt")
-SOURCE_FROM_DATE = os.getenv("SOURCE_FROM_DATE", "2022-01-01")
-SOURCE_TO_DATE = os.getenv("SOURCE_TO_DATE", "2023-12-31")
+SOURCE_FROM_DATE = os.getenv("SOURCE_FROM_DATE", "2025-01-01")
+SOURCE_TO_DATE = os.getenv("SOURCE_TO_DATE", "2026-01-01")
 
 # =====================================================
 # Data Validation Thresholds
@@ -138,17 +138,17 @@ VALIDATION_SPLIT = 0.2
 
 # Forecast model training (NeuralForecast)
 FORECAST_UNIQUE_ID = os.getenv("FORECAST_UNIQUE_ID", "Deposit_Portfolio")
-FORECAST_HORIZON = int(os.getenv("FORECAST_HORIZON", "7"))
-FORECAST_EVAL_HORIZON = int(os.getenv("FORECAST_EVAL_HORIZON", "7"))
+FORECAST_HORIZON = int(os.getenv("FORECAST_HORIZON", "30"))
+FORECAST_EVAL_HORIZON = int(os.getenv("FORECAST_EVAL_HORIZON", "30"))
 FORECAST_INPUT_SIZE = int(os.getenv("FORECAST_INPUT_SIZE", "90"))
-FORECAST_LEARNING_RATE = float(os.getenv("FORECAST_LEARNING_RATE", "0.001"))
-FORECAST_MAX_STEPS = int(os.getenv("FORECAST_MAX_STEPS", "1000"))
+FORECAST_LEARNING_RATE = float(os.getenv("FORECAST_LEARNING_RATE", "0.0005"))
+FORECAST_MAX_STEPS = int(os.getenv("FORECAST_MAX_STEPS", "100"))
 FORECAST_LOSS = os.getenv("FORECAST_LOSS", "MAPE")
 FORECAST_OPTIMIZER = os.getenv("FORECAST_OPTIMIZER", "Adam")
 FORECAST_ACTIVATION = os.getenv("FORECAST_ACTIVATION", "ReLU")
 FORECAST_CV_WINDOWS = int(os.getenv("FORECAST_CV_WINDOWS", "2"))
 FORECAST_START_PADDING_ENABLED = os.getenv(
-    "FORECAST_START_PADDING_ENABLED", "false"
+    "FORECAST_START_PADDING_ENABLED", "true"
 ).lower() in {"1", "true", "yes", "y"}
 FORECAST_OUTPUT_DIR = os.getenv("FORECAST_OUTPUT_DIR", "results")
 

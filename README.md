@@ -43,8 +43,11 @@ Hệ thống MLOps toàn diện cho dự báo dòng tiền (Cashflow Forecasting
 
     * `PROJECT_TEMPLATE`: Tên dự án dùng để chứa các Task Templates.
     * `PROJECT_DATASET`: Tên dự án chuyên lưu trữ các version Dataset.
+    * Cấu hình nguồn dữ liệu PostgreSQL trong `.env`: `DB_*`, `SOURCE_PROJECT_NAME`, `SOURCE_FLOW_TYPE`, `SOURCE_APPROVAL_STATUS`, `SOURCE_FROM_DATE`, `SOURCE_TO_DATE`.
     * Các ngưỡng (Thresholds): `MAPE_THRESHOLD`, `DRIFT_RATIO_THRESHOLD`.
     * Cấu hình SMTP: cho chức năng tự động gửi email cảnh báo mô hình suy thoái.
+
+    Bước `Extract Data` hiện đọc dữ liệu từ bảng cashflow thật theo pattern của `vc-mco-mlops`, lọc theo project/flow/status/date window, sau đó aggregate theo ngày thành schema `date`, `cashflow`.
 
 3. **Thiết lập ClearML**: Xem [Hạ tầng & Agent](docs/02_infrastructure.md).
 
@@ -57,8 +60,8 @@ Hệ thống MLOps toàn diện cho dự báo dòng tiền (Cashflow Forecasting
     ```
 
     Tiếp theo cần:
-    * Copy các template IDs được in từ lệnh trên gán cho các giá trị của các biến tương ứng có dạng `TEMPLATE_<TASK>_ID` trong file `config.py`.
-    * Sau đó cần commit và push những thay đổi này của file `config.py` lên Git
+    * Script sẽ tự động ghi các template IDs mới vào file `.env` theo dạng `TEMPLATE_<TASK>_ID=...`.
+    * Không commit các ClearML IDs mới vào `config.py`; file `config.py` chỉ giữ fallback legacy IDs.
 
     **Lưu ý bước này chỉ chạy 1 lần duy nhất.**
 

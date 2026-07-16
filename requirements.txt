@@ -101,6 +101,8 @@ python-dateutil==2.9.0.post0
     #   pandas
 python-dotenv==1.2.2
     # via cashflow-clearml (pyproject.toml)
+psycopg2-binary==2.9.10
+    # via cashflow-clearml (pyproject.toml)
 pytz==2026.2
     # via pandas
 pyyaml==6.0.3
@@ -145,6 +147,7 @@ slicer==0.0.8
 sqlalchemy==2.0.50
     # via
     #   alembic
+    #   cashflow-clearml (pyproject.toml)
     #   optuna
 threadpoolctl==3.6.0
     # via scikit-learn

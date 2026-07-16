@@ -43,6 +43,23 @@ CPU_QUEUE = "cpu_queue"
 SERVICES_QUEUE = "services"
 
 # =====================================================
+# Source Database Configuration
+# =====================================================
+
+DB_USER = os.getenv("DB_USER", "vega")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", "5432"))
+DB_NAME = os.getenv("DB_NAME", "vc_mco")
+DB_SCHEMA = os.getenv("DB_SCHEMA", "public")
+
+SOURCE_PROJECT_NAME = os.getenv("SOURCE_PROJECT_NAME", "")
+SOURCE_FLOW_TYPE = os.getenv("SOURCE_FLOW_TYPE", "Vào")
+SOURCE_APPROVAL_STATUS = os.getenv("SOURCE_APPROVAL_STATUS", "Đã duyệt")
+SOURCE_FROM_DATE = os.getenv("SOURCE_FROM_DATE", "2022-01-01")
+SOURCE_TO_DATE = os.getenv("SOURCE_TO_DATE", "2023-12-31")
+
+# =====================================================
 # Data Validation Thresholds
 # =====================================================
 

@@ -9,10 +9,12 @@ from config import (
     PROJECT_TEMPLATE,
     PROJECT_DATASET,
     TEMPLATE_EXTRACT_NAME,
-    START_DATE,
-    N_DAYS,
 )
-from business.data_processing import extract_data
+from business.data_processing import (
+    build_extract_source_summary,
+    extract_data,
+    get_source_config,
+)
 
 
 task = Task.init(
@@ -25,7 +27,8 @@ task = Task.init(
 # BUSINESS LOGIC: Begin
 # =====================================================
 
-df = extract_data()
+source_config = get_source_config()
+df = extract_data(source_config)
 
 # =====================================================
 # BUSINESS LOGIC: End
@@ -127,13 +130,16 @@ if not dataset:
 
 extract_summary = {
     "n_rows": len(df),
-    "start_date": START_DATE,
-    "n_days": N_DAYS,
     "raw_dataset_id": dataset.id,
+    **build_extract_source_summary(source_config, df),
 }
 extract_lineage = {
     "extract_task_id": task.id,
     "raw_dataset_id": dataset.id,
+    "source_type": "postgresql",
+    "source_project_name": source_config.project_name,
+    "source_from_date": source_config.from_date,
+    "source_to_date": source_config.to_date,
 }
 task.upload_artifact("extract_summary", extract_summary)
 task.upload_artifact("extract_lineage", extract_lineage)

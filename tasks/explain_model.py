@@ -2,13 +2,12 @@
 Model Explainability Task — Sử dụng SHAP để phân tích đóng góp của features.
 """
 
-import shap
-import joblib
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
 from clearml import (
+    Model,
     Task,
     InputModel,
     Dataset,
@@ -54,6 +53,53 @@ if not params["feature_task_id"] or not params["train_task_id"]:
 
 
 # =====================================================
+# Load trained model identity first so non-tree models can skip SHAP safely
+# =====================================================
+
+train_task = Task.get_task(task_id=params["train_task_id"])
+model_id = wait_for_artifact(
+    train_task,
+    "model_id",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+registered_model = Model(model_id=model_id)
+
+if registered_model.get_metadata("model_framework") == "NeuralForecast":
+    feature_task = Task.get_task(task_id=params["feature_task_id"])
+    feature_dataset_id = wait_for_artifact(
+        feature_task,
+        "feature_dataset_id",
+        max_retries=10,
+        wait_interval=2.0,
+        logger_obj=task,
+    )
+    explain_summary = {
+        "model_id": model_id,
+        "model_framework": "NeuralForecast",
+        "status": "skipped",
+        "reason": "SHAP TreeExplainer is only supported for the legacy LightGBM model.",
+    }
+    explain_lineage = {
+        "explain_task_id": task.id,
+        "train_task_id": params["train_task_id"],
+        "feature_task_id": params["feature_task_id"],
+        "model_id": model_id,
+        "feature_dataset_id": feature_dataset_id,
+    }
+    task.upload_artifact("explain_summary", explain_summary)
+    task.upload_artifact("explain_lineage", explain_lineage)
+    task.get_logger().report_text(
+        "Skipping SHAP explainability because the trained model is NeuralForecast."
+    )
+    print(explain_summary)
+    task.flush()
+    task.close()
+    raise SystemExit(0)
+
+
+# =====================================================
 # Load feature dataset
 # =====================================================
 
@@ -85,18 +131,11 @@ X_train = train_df[FEATURE_COLUMNS]
 
 task.get_logger().report_text("Loading trained model...")
 
-train_task = Task.get_task(task_id=params["train_task_id"])
-
-# Dùng wait_for_artifact để chắc chắn model ID sẵn sàng
-model_id = wait_for_artifact(
-    train_task,
-    "model_id",
-    max_retries=10,
-    wait_interval=2.0,
-    logger_obj=task,
-)
-
 input_model = InputModel(model_id=model_id)
+
+import joblib
+import shap
+
 model_path = input_model.get_local_copy()
 model = joblib.load(model_path)
 

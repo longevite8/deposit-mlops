@@ -1,28 +1,43 @@
-import lightgbm as lgb
-from clearml import (
-    Task,
-    OutputModel,
-    Dataset,
-)
-
 from pathlib import Path
+import os
 
 import pandas as pd
+from clearml import Dataset, OutputModel, Task
 
+from business.forecasting import (
+    ForecastTrainingConfig,
+    archive_model_dir,
+    historical_exogenous_columns,
+    prepare_forecast_frame,
+    save_forecast_model,
+    train_forecast_model,
+)
 from config import (
+    FORECAST_ACTIVATION,
+    FORECAST_CV_WINDOWS,
+    FORECAST_EVAL_HORIZON,
+    FORECAST_HORIZON,
+    FORECAST_INPUT_SIZE,
+    FORECAST_LEARNING_RATE,
+    FORECAST_LOSS,
+    FORECAST_MAX_STEPS,
+    FORECAST_OPTIMIZER,
+    FORECAST_OUTPUT_DIR,
+    FORECAST_START_PADDING_ENABLED,
+    FORECAST_UNIQUE_ID,
     PROJECT_TEMPLATE,
-    TEMPLATE_TRAIN_NAME,
     RANDOM_STATE,
-    FEATURE_COLUMNS,
     TARGET_COLUMN,
+    TEMPLATE_TRAIN_NAME,
 )
-
 from helpers import wait_for_artifact
-from business.train import (
-    train_lgbm_model,
-    calculate_feature_importance,
-    save_model,
-)
+
+
+def truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() in {"1", "true", "yes", "y"}
+
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -31,37 +46,52 @@ task = Task.init(
 )
 
 
-# =====================================================
-# Parameters
-# =====================================================
-
 params = task.connect(
     {
         "feature_task_id": "",
         "hpo_task_id": "",
+        "horizon": FORECAST_HORIZON,
+        "eval_horizon": FORECAST_EVAL_HORIZON,
+        "input_size": FORECAST_INPUT_SIZE,
+        "learning_rate": FORECAST_LEARNING_RATE,
+        "max_steps": FORECAST_MAX_STEPS,
+        "loss": FORECAST_LOSS,
+        "optimizer": FORECAST_OPTIMIZER,
+        "activation": FORECAST_ACTIVATION,
+        "cv_windows": FORECAST_CV_WINDOWS,
+        "start_padding_enabled": FORECAST_START_PADDING_ENABLED,
+        "output_dir": FORECAST_OUTPUT_DIR,
+        "unique_id": FORECAST_UNIQUE_ID,
     }
 )
 
-# =====================================================
-# Template creation mode
-# =====================================================
 
-if not params["feature_task_id"] or not params["hpo_task_id"]:
+if not params["feature_task_id"]:
     task.get_logger().report_text("Template creation mode.")
-
     task.close()
     raise SystemExit(0)
 
 
-# =====================================================
-# Load datasets
-# =====================================================
-
-feature_task = Task.get_task(
-    task_id=params["feature_task_id"],
+forecast_config = ForecastTrainingConfig(
+    horizon=int(params["horizon"]),
+    input_size=int(params["input_size"]),
+    learning_rate=float(params["learning_rate"]),
+    max_steps=int(params["max_steps"]),
+    loss=str(params["loss"]),
+    optimizer=str(params["optimizer"]),
+    activation=str(params["activation"]),
+    cv_windows=int(params["cv_windows"]),
+    eval_horizon=int(params["eval_horizon"]),
+    seed=RANDOM_STATE,
+    start_padding_enabled=truthy(params["start_padding_enabled"]),
 )
+output_dir = Path(str(params["output_dir"]))
+output_dir.mkdir(parents=True, exist_ok=True)
+model_dir = output_dir / "checkpoints"
+model_archive_path = output_dir / "deposit_forecast_model.zip"
 
-# Lấy lineage của feature_task để truy xuất thông tin nguồn gốc
+
+feature_task = Task.get_task(task_id=params["feature_task_id"])
 feature_lineage = wait_for_artifact(
     feature_task,
     "feature_lineage",
@@ -69,136 +99,51 @@ feature_lineage = wait_for_artifact(
     wait_interval=2.0,
     logger_obj=task,
 )
-
 feature_dataset_id = feature_lineage["feature_dataset_id"]
-
-feature_dataset = Dataset.get(
-    dataset_id=feature_dataset_id,
-)
-
+feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
 local_path = Path(feature_dataset.get_local_copy())
 
 train_df = pd.read_parquet(local_path / "train.parquet")
-
 valid_df = pd.read_parquet(local_path / "valid.parquet")
 
-# =====================================================
-# Combine train + valid
-# =====================================================
+df_train = pd.concat([train_df, valid_df], ignore_index=True)
+forecast_train_df = prepare_forecast_frame(
+    df_train,
+    unique_id=str(params["unique_id"]),
+)
+hist_exog = historical_exogenous_columns(forecast_train_df)
 
-df_train = pd.concat(
-    [
-        train_df,
-        valid_df,
-    ]
-).reset_index(drop=True)
-
-
-# =====================================================
-# Dataset
-# =====================================================
-
-X_train = df_train[FEATURE_COLUMNS]
-
-y_train = df_train[TARGET_COLUMN]
-
-# Extract validation data từ valid_df
-X_valid = valid_df[FEATURE_COLUMNS]
-
-y_valid = valid_df[TARGET_COLUMN]
-
-# =====================================================
-# Load best params
-# =====================================================
-
-hpo_task = Task.get_task(task_id=params["hpo_task_id"])
-
-best_params = hpo_task.artifacts["best_params"].get()
-
-task.get_logger().report_text(f"Best params = {best_params}")
-
-
-# =====================================================
-# Train model (REFACTORED)
-# =====================================================
-
-
-# Callback để log loss mỗi epoch (Giữ lại ở task layer vì dùng task logger)
-def log_training_metrics(env):
-    if env.iteration % 10 == 0:
-        task.get_logger().report_scalar(
-            title="Training Loss",
-            series="iteration",
-            value=env.evaluation_result_list[0][2],
-            iteration=env.iteration,
-        )
-        if len(env.evaluation_result_list) > 1:
-            task.get_logger().report_scalar(
-                title="Validation Loss",
-                series="iteration",
-                value=env.evaluation_result_list[1][2],
-                iteration=env.iteration,
-            )
-
-
-callbacks = [
-    lgb.log_evaluation(period=10),
-    lgb.early_stopping(stopping_rounds=50),
-    log_training_metrics,
-]
-
-# =====================================================
-# BUSINESS LOGIC: Begin
-# =====================================================
-
-model = train_lgbm_model(
-    X_train=X_train,
-    y_train=y_train,
-    X_valid=X_valid,
-    y_valid=y_valid,
-    best_params=best_params,
-    random_state=RANDOM_STATE,
-    callbacks=callbacks,
+task.get_logger().report_text(
+    "Training NeuralForecast model with "
+    f"{len(forecast_train_df)} rows, horizon={forecast_config.horizon}, "
+    f"input_size={forecast_config.input_size}, hist_exog={hist_exog}."
 )
 
+nf, cv_df, metrics = train_forecast_model(
+    forecast_train_df,
+    forecast_config,
+    hist_exog=hist_exog,
+)
 
-# Feature importance
-split_importance, gain_importance = calculate_feature_importance(model, FEATURE_COLUMNS)
+cv_results_path = output_dir / "train_cv_results.csv"
+cv_df.to_csv(cv_results_path, index=False)
+task.upload_artifact("train_cv_results", cv_df)
 
-# Lưu mô hình local
-save_model(model, "model.pkl")
-
-# =====================================================
-# BUSINESS LOGIC: End
-# =====================================================
-
-# =====================================================
-# Register output model
-# =====================================================
+save_forecast_model(nf, model_dir)
+archive_model_dir(model_dir, model_archive_path)
 
 output_model = OutputModel(
     task=task,
-    name="lightgbm_model",
+    name="neuralforecast_deposit_model",
 )
+output_model.update_weights(weights_filename=str(model_archive_path))
+output_model.set_metadata("model_framework", "NeuralForecast")
+output_model.set_metadata("forecast_unique_id", str(params["unique_id"]))
+output_model.set_metadata("feature_dataset_id", feature_dataset_id)
+output_model.set_metadata("feature_task_id", feature_task.id)
+output_model.set_metadata("train_task_id", task.id)
+output_model.set_metadata("model_archive_format", "zip")
 
-output_model.update_weights(weights_filename="model.pkl")
-
-output_model.set_metadata(
-    "feature_dataset_id",
-    feature_dataset_id,
-)
-
-output_model.set_metadata(
-    "feature_task_id",
-    feature_task.id,
-)
-
-output_model.set_metadata(
-    "train_task_id",
-    task.id,
-)
-
-# Truy vết raw_dataset_id từ extract_task thông qua feature_lineage
 extract_task_id = feature_lineage["extract_task_id"]
 extract_task = Task.get_task(task_id=extract_task_id)
 extract_summary = wait_for_artifact(
@@ -209,108 +154,40 @@ extract_summary = wait_for_artifact(
     logger_obj=task,
 )
 raw_dataset_id = extract_summary["raw_dataset_id"]
+output_model.set_metadata("raw_dataset_id", raw_dataset_id)
 
-output_model.set_metadata(
-    "raw_dataset_id",
-    raw_dataset_id,
-)
-
-# =====================================================
-# Upload model_id
-# =====================================================
-
-task.upload_artifact(
-    "model_id",
-    output_model.id,
-)
-
-task.upload_artifact(
-    "feature_dataset_id",
-    feature_dataset_id,
-)
-
-task.upload_artifact(
-    "raw_dataset_id",
-    raw_dataset_id,
-)
-
-
-# Report feature importance scalars (Giữ phần report ở task layer)
-task.get_logger().report_table(
-    title="Feature Importance (Split)",
-    series="importance",
-    iteration=0,
-    table_plot=split_importance,
-)
-
-task.get_logger().report_table(
-    title="Feature Importance (Gain)",
-    series="importance",
-    iteration=0,
-    table_plot=gain_importance,
-)
-
-# Log top 3 features
-top_3_features = split_importance.head(3)
-for idx, row in top_3_features.iterrows():
-    task.get_logger().report_single_value(
-        f"top_feature_{idx + 1}_importance",
-        float(row["split_importance"]),
-    )
-
-task.upload_artifact(
-    "split_importance",
-    split_importance,
-)
-
-task.upload_artifact(
-    "gain_importance",
-    gain_importance,
-)
-
-
-# =====================================================
-# Training info
-# =====================================================
+for metric_name, metric_value in metrics.items():
+    if isinstance(metric_value, (int, float)):
+        task.get_logger().report_single_value(metric_name, float(metric_value))
 
 training_info = {
     "model_id": output_model.id,
+    "model_framework": "NeuralForecast",
+    "model_archive": os.path.basename(model_archive_path),
     "feature_dataset_id": feature_dataset_id,
     "raw_dataset_id": raw_dataset_id,
-    "best_params": best_params,
-    "n_rows": len(df_train),
-    "n_features": len(FEATURE_COLUMNS),
-    "feature_columns": FEATURE_COLUMNS,
-}
-
-task.upload_artifact(
-    "training_info",
-    training_info,
-)
-
-model_card = {
-    "algorithm": "LightGBM",
-    "feature_columns": FEATURE_COLUMNS,
+    "n_rows": len(forecast_train_df),
     "target_column": TARGET_COLUMN,
-    "best_params": best_params,
-    "n_rows": len(df_train),
-    "n_features": len(FEATURE_COLUMNS),
+    "forecast_columns": list(forecast_train_df.columns),
+    "hist_exog": hist_exog,
+    "training_config": forecast_config.__dict__,
+    "metrics": metrics,
+}
+model_card = {
+    "algorithm": "NeuralForecast NHITS + NBEATSx",
+    "forecast_schema": ["unique_id", "ds", "y"],
+    "target_column": TARGET_COLUMN,
     "feature_dataset_id": feature_dataset_id,
     "raw_dataset_id": raw_dataset_id,
+    "n_rows": len(forecast_train_df),
+    "training_config": forecast_config.__dict__,
+    "metrics": metrics,
 }
-
-task.upload_artifact(
-    "model_card",
-    model_card,
-)
-
-# =====================================================
-# Training summary & lineage
-# =====================================================
-
 train_summary = {
     "model_id": output_model.id,
     "model_name": output_model.name,
+    "model_framework": "NeuralForecast",
+    "metrics": metrics,
 }
 train_lineage = {
     "train_task_id": task.id,
@@ -318,25 +195,29 @@ train_lineage = {
     "hpo_task_id": params.get("hpo_task_id"),
     "model_id": output_model.id,
     "feature_dataset_id": feature_dataset_id,
+    "raw_dataset_id": raw_dataset_id,
 }
+
+task.upload_artifact("model_id", output_model.id)
+task.upload_artifact("feature_dataset_id", feature_dataset_id)
+task.upload_artifact("raw_dataset_id", raw_dataset_id)
+task.upload_artifact("training_info", training_info)
+task.upload_artifact("model_card", model_card)
 task.upload_artifact("train_summary", train_summary)
 task.upload_artifact("train_lineage", train_lineage)
-
-# =====================================================
-# Log
-# =====================================================
+task.upload_artifact("training_metrics", metrics)
 
 task.get_logger().report_text(
     f"""
     Raw Dataset      : {raw_dataset_id}
     Feature Dataset  : {feature_dataset_id}
-    Training rows    : {len(df_train)}
+    Model ID         : {output_model.id}
+    Training rows    : {len(forecast_train_df)}
     """
 )
+task.get_logger().report_text("Forecast training completed.")
 
-task.get_logger().report_text("Training completed.")
-
-print("Training completed.")
+print("Forecast training completed.")
 
 task.flush()
 task.close()

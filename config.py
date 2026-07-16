@@ -4,6 +4,7 @@ All constants should be defined here — never hardcode values in task files.
 """
 
 import os
+
 from dotenv import load_dotenv
 
 # =====================================================
@@ -135,6 +136,22 @@ LGBM_METRIC = "mape"  # Mean Absolute Percentage Error
 EARLY_STOPPING_ROUNDS = 50
 VALIDATION_SPLIT = 0.2
 
+# Forecast model training (NeuralForecast)
+FORECAST_UNIQUE_ID = os.getenv("FORECAST_UNIQUE_ID", "Deposit_Portfolio")
+FORECAST_HORIZON = int(os.getenv("FORECAST_HORIZON", "7"))
+FORECAST_EVAL_HORIZON = int(os.getenv("FORECAST_EVAL_HORIZON", "7"))
+FORECAST_INPUT_SIZE = int(os.getenv("FORECAST_INPUT_SIZE", "90"))
+FORECAST_LEARNING_RATE = float(os.getenv("FORECAST_LEARNING_RATE", "0.001"))
+FORECAST_MAX_STEPS = int(os.getenv("FORECAST_MAX_STEPS", "1000"))
+FORECAST_LOSS = os.getenv("FORECAST_LOSS", "MAPE")
+FORECAST_OPTIMIZER = os.getenv("FORECAST_OPTIMIZER", "Adam")
+FORECAST_ACTIVATION = os.getenv("FORECAST_ACTIVATION", "ReLU")
+FORECAST_CV_WINDOWS = int(os.getenv("FORECAST_CV_WINDOWS", "2"))
+FORECAST_START_PADDING_ENABLED = os.getenv(
+    "FORECAST_START_PADDING_ENABLED", "false"
+).lower() in {"1", "true", "yes", "y"}
+FORECAST_OUTPUT_DIR = os.getenv("FORECAST_OUTPUT_DIR", "results")
+
 # =====================================================
 # Quality Gate Thresholds (Evaluation)
 # =====================================================
@@ -238,9 +255,7 @@ TEMPLATE_VALIDATE_ID = env_template_id(
 TEMPLATE_DRIFT_ID = env_template_id(
     "TEMPLATE_DRIFT_ID", "81a0703317934b088c9bede78f365617"
 )
-TEMPLATE_HPO_ID = env_template_id(
-    "TEMPLATE_HPO_ID", "e191d1910f3f49ab8f209b1045a5ac21"
-)
+TEMPLATE_HPO_ID = env_template_id("TEMPLATE_HPO_ID", "e191d1910f3f49ab8f209b1045a5ac21")
 TEMPLATE_TRAIN_ID = env_template_id(
     "TEMPLATE_TRAIN_ID", "914aa57881cf41f6ad09617a597ec888"
 )

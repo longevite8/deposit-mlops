@@ -1,7 +1,16 @@
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path = [p for p in sys.path if not (p == "/vc-mco" or p.startswith("/vc-mco/"))]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from datetime import datetime
 import time
 
 from clearml.automation import PipelineController
+from clearml import Task
 
 from config import (
     CLEARML_SERVER_URL,
@@ -16,6 +25,8 @@ from pipelines.specs import (
     build_pipeline_manifest,
     validate_pipeline_specs,
 )
+
+Task.force_requirements_env_freeze(requirements_file="requirements-controller.txt")
 
 
 def wait_for_pipeline_start(pipeline_id: str, max_wait_time: int = 30) -> bool:
@@ -56,6 +67,10 @@ def main() -> None:
         name=PRODUCTION_PIPELINE_NAME,
         version=DEPLOYMENT_VERSION,
     )
+    pipe.task.set_script(
+        working_dir=".",
+        entry_point="pipelines/production_pipeline.py",
+    )
 
     pipe.task.set_tags(["pipeline", "production"])
     pipe.task.set_comment(f"Production Pipeline (automated)\nTimestamp: {timestamp}")
@@ -90,7 +105,7 @@ def main() -> None:
     print("📌 Starting Production Pipeline...")
     print("=" * 70)
 
-    pipe.start()
+    pipe.start(queue=SERVICES_QUEUE)
     pipeline_id = pipe.task.id
 
     print("=" * 70)

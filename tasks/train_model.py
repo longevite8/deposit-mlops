@@ -1,4 +1,12 @@
 from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path = [p for p in sys.path if not (p == "/vc-mco" or p.startswith("/vc-mco/"))]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pathlib import Path
 import os
 
 import pandas as pd
@@ -199,6 +207,7 @@ train_lineage = {
 }
 
 task.upload_artifact("model_id", output_model.id)
+task.upload_artifact("model_archive", model_archive_path)
 task.upload_artifact("feature_dataset_id", feature_dataset_id)
 task.upload_artifact("raw_dataset_id", raw_dataset_id)
 task.upload_artifact("training_info", training_info)

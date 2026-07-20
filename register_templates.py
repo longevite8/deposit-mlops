@@ -32,6 +32,14 @@ load_dotenv(env_path)
 
 # Load GIT_REPO từ .env hoặc dùng default
 GIT_REPO = os.getenv("GIT_REPO", "")
+GIT_BRANCH = os.getenv("GIT_BRANCH", "vc-mco")
+REQUIREMENTS_FILE = os.getenv("CLEARML_REQUIREMENTS_FILE", "requirements.txt")
+LIGHT_REQUIREMENTS_FILE = os.getenv(
+    "CLEARML_LIGHT_REQUIREMENTS_FILE", "requirements-tasks.txt"
+)
+FORECAST_REQUIREMENTS_FILE = os.getenv(
+    "CLEARML_FORECAST_REQUIREMENTS_FILE", "requirements-forecast.txt"
+)
 
 if not GIT_REPO:
     raise ValueError(
@@ -40,6 +48,10 @@ if not GIT_REPO:
     )
 
 print(f"✅ Using GIT_REPO: {GIT_REPO}")
+print(f"✅ Using GIT_BRANCH: {GIT_BRANCH}")
+print(f"✅ Using default requirements file: {REQUIREMENTS_FILE}")
+print(f"✅ Using light task requirements file: {LIGHT_REQUIREMENTS_FILE}")
+print(f"✅ Using forecast requirements file: {FORECAST_REQUIREMENTS_FILE}")
 
 
 def update_env_file(env_file: Path, values: dict[str, str]) -> None:
@@ -70,115 +82,135 @@ def update_env_file(env_file: Path, values: dict[str, str]) -> None:
 
     env_file.write_text("\n".join(updated_lines) + "\n", encoding="utf-8")
 
-# Mảng mapping giữa Tên Template, Loại Task, Script và Tên biến trong config.py
+# Mảng mapping giữa Tên Template, Loại Task, Script, Tên biến trong config.py,
+# và requirements profile dành cho ClearML Agent.
 templates = [
     (
         TEMPLATE_EXTRACT_NAME,
         Task.TaskTypes.data_processing,
         "tasks/extract_data.py",
         "TEMPLATE_EXTRACT_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_FEATURE_NAME,
         Task.TaskTypes.data_processing,
         "tasks/feature_engineering.py",
         "TEMPLATE_FEATURE_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_VALIDATE_NAME,
         Task.TaskTypes.qc,
         "tasks/validate_data.py",
         "TEMPLATE_VALIDATE_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_DRIFT_NAME,
         Task.TaskTypes.qc,
         "tasks/drift_detection.py",
         "TEMPLATE_DRIFT_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_HPO_NAME,
         Task.TaskTypes.optimizer,
         "tasks/hpo_model.py",
         "TEMPLATE_HPO_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_TRAIN_NAME,
         Task.TaskTypes.training,
         "tasks/train_model.py",
         "TEMPLATE_TRAIN_ID",
+        FORECAST_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_EVALUATE_NAME,
         Task.TaskTypes.qc,
         "tasks/evaluate_model.py",
         "TEMPLATE_EVALUATE_ID",
+        FORECAST_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_REGISTER_NAME,
         Task.TaskTypes.application,
         "tasks/register_model.py",
         "TEMPLATE_REGISTER_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_COMPARE_CHAMPION_NAME,
         Task.TaskTypes.application,
         "tasks/compare_champion.py",
         "TEMPLATE_COMPARE_CHAMPION_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_PROMOTE_CHAMPION_NAME,
         Task.TaskTypes.application,
         "tasks/promote_champion.py",
         "TEMPLATE_PROMOTE_CHAMPION_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_INFERENCE_NAME,
         Task.TaskTypes.inference,
         "tasks/inference_model.py",
         "TEMPLATE_INFERENCE_ID",
+        FORECAST_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_MONITORING_NAME,
         Task.TaskTypes.qc,
         "tasks/monitoring_model.py",
         "TEMPLATE_MONITORING_ID",
+        FORECAST_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_ALERTING_NAME,
         Task.TaskTypes.qc,
         "tasks/alerting_model.py",
         "TEMPLATE_ALERTING_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_AUTO_RETRAINING_NAME,
         Task.TaskTypes.application,
         "tasks/auto_retraining.py",
         "TEMPLATE_AUTO_RETRAINING_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
     (
         TEMPLATE_EXPLAIN_NAME,
         Task.TaskTypes.qc,
         "tasks/explain_model.py",
         "TEMPLATE_EXPLAIN_ID",
+        LIGHT_REQUIREMENTS_FILE,
     ),
 ]
 
 current_commit = check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+current_diff = check_output(["git", "diff", "--no-ext-diff"]).decode()
 
 # Dictionary để lưu ID mới nhằm cập nhật vào config.py
 new_ids = {}
 
-for name, task_type, script, config_var in templates:
+for name, task_type, script, config_var, requirements_file in templates:
     task = Task.create(
         project_name=PROJECT_TEMPLATE,
         task_name=name,
         task_type=task_type,
         repo=GIT_REPO,
-        branch="main",
+        branch=GIT_BRANCH,
         script=script,
         working_directory=".",
+        requirements_file=requirements_file,
     )
+    if current_diff:
+        task.set_script(diff=current_diff)
 
     task.upload_artifact("template_commit", current_commit)
     new_ids[config_var] = task.id

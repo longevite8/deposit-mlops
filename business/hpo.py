@@ -1,6 +1,6 @@
 import optuna
-from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_percentage_error
+from sklearn.tree import DecisionTreeRegressor
 
 
 def run_hpo_optimization(
@@ -19,7 +19,10 @@ def run_hpo_optimization(
             "random_state": random_state,
         }
 
-        model = LGBMRegressor(**model_params)
+        model = DecisionTreeRegressor(
+            max_leaf_nodes=model_params["num_leaves"],
+            random_state=model_params["random_state"],
+        )
         model.fit(X_train, y_train)
 
         y_pred = model.predict(X_valid)

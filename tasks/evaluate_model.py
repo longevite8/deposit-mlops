@@ -1,4 +1,12 @@
 from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path = [p for p in sys.path if not (p == "/vc-mco" or p.startswith("/vc-mco/"))]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from pathlib import Path
 
 import pandas as pd
 from clearml import Dataset, InputModel, Task
@@ -78,8 +86,14 @@ test_forecast_df = prepare_forecast_frame(
 
 train_task = Task.get_task(task_id=params["train_task_id"])
 model_id = train_task.artifacts["model_id"].get()
-input_model = InputModel(model_id=model_id)
-model_archive_path = input_model.get_local_copy()
+model_archive_artifact = train_task.artifacts.get("model_archive")
+if model_archive_artifact:
+    model_archive_path = model_archive_artifact.get_local_copy()
+else:
+    input_model = InputModel(model_id=model_id)
+    model_archive_path = input_model.get_local_copy()
+if not model_archive_path:
+    raise ValueError(f"Could not resolve local model archive for model_id={model_id}")
 model = load_forecast_model_from_archive(model_archive_path)
 
 forecasts = model.predict(df=history_df)

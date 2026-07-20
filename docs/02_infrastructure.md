@@ -20,13 +20,40 @@ pip install clearml-agent
 
 ### Bước 2: Cấu hình Credentials
 
+Máy chạy `python -m pipelines.training_pipeline`, `python -m pipelines.production_pipeline`, `register_templates.py`, hoặc ClearML Agent đều cần ClearML client credentials.
+
 Chạy lệnh sau và nhập thông tin từ ClearML Web UI (Profile -> Create new credentials):
 
 ```bash
-clearml-agent init
+clearml-init
 ```
 
 Kết quả cấu hình sẽ được lưu tại `~/.clearml/clearml.conf`.
+
+Với ClearML Agent chạy bằng `pip`, cần đảm bảo agent dùng pip mới và cài đúng CPU wheel index cho PyTorch. Thêm hoặc cập nhật block sau trong `~/.clearml/clearml.conf` trên máy chạy agent:
+
+```ini
+agent {
+  package_manager {
+    pip_version: [">=24.3"]
+    extra_index_url: ["https://download.pytorch.org/whl/cpu"]
+    force_repo_requirements_txt: true
+  }
+}
+```
+
+Nếu không cấu hình `pip_version`, agent có thể tạo virtualenv với pip cũ (`pip<22.3`), dẫn tới lỗi PyPI `Content-Type: application/vnd.pypi.simple.v1+json`. Nếu không cấu hình requirements/index, agent có thể tự suy luận sai wheel PyTorch thành `cu0`.
+
+Nếu muốn cấu hình qua `.env`, set đủ các biến sau:
+
+```bash
+CLEARML_API_ACCESS_KEY="your-access-key"
+CLEARML_API_SECRET_KEY="your-secret-key"
+CLEARML_API_HOST="http://<clearml-server-host>:8008"
+CLEARML_WEB_HOST="http://<clearml-server-host>:8080"
+CLEARML_FILES_HOST="http://<clearml-server-host>:8081"
+CLEARML_SERVER_URL="http://<clearml-server-host>:8080"
+```
 
 ## 3. Quản lý Queues & Worker
 

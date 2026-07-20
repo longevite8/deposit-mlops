@@ -40,8 +40,8 @@ CLEARML_SERVER_URL = os.getenv(
 # Queues
 # =====================================================
 
-CPU_QUEUE = "cpu_queue"
-SERVICES_QUEUE = "services"
+CPU_QUEUE = os.getenv("CLEARML_CPU_QUEUE", "training")
+SERVICES_QUEUE = os.getenv("CLEARML_SERVICES_QUEUE", "mco-services")
 
 # =====================================================
 # Source Database Configuration
@@ -64,8 +64,8 @@ SOURCE_TO_DATE = os.getenv("SOURCE_TO_DATE", "2026-01-01")
 # Data Validation Thresholds
 # =====================================================
 
-MIN_VALUE = 0.0  # Giá trị tối thiểu cho TARGET_COLUMN (cashflow không âm)
-MAX_VALUE = 100000.0  # Giá trị tối đa (outlier detection)
+MIN_VALUE = float(os.getenv("VALIDATION_MIN_VALUE", "0.0"))
+MAX_VALUE = float(os.getenv("VALIDATION_MAX_VALUE", "200000000000.0"))
 
 # Data quality checks
 ALLOW_DUPLICATES = False  # Không cho phép duplicate timestamps
@@ -244,47 +244,47 @@ def env_template_id(name, default):
 
 
 TEMPLATE_EXTRACT_ID = env_template_id(
-    "TEMPLATE_EXTRACT_ID", "1936041b1a3f453aa99b815f5d1c5c8d"
+    "TEMPLATE_EXTRACT_ID", "53eafa3de16343e9bbbb41f8261668c7"
 )
 TEMPLATE_FEATURE_ID = env_template_id(
-    "TEMPLATE_FEATURE_ID", "a944fe9e014a4013a37453782dbd6fbc"
+    "TEMPLATE_FEATURE_ID", "bead44efd2b64532a93cd63541dff9e8"
 )
 TEMPLATE_VALIDATE_ID = env_template_id(
-    "TEMPLATE_VALIDATE_ID", "09d7c67031e24577b86bfaaf8ab70276"
+    "TEMPLATE_VALIDATE_ID", "6906d2d6543243ae848ae1f8e9f3e742"
 )
 TEMPLATE_DRIFT_ID = env_template_id(
-    "TEMPLATE_DRIFT_ID", "81a0703317934b088c9bede78f365617"
+    "TEMPLATE_DRIFT_ID", "ffbdabf695824d8aa7e8cc539586098a"
 )
-TEMPLATE_HPO_ID = env_template_id("TEMPLATE_HPO_ID", "e191d1910f3f49ab8f209b1045a5ac21")
+TEMPLATE_HPO_ID = env_template_id("TEMPLATE_HPO_ID", "6264a56b9ae04b8ca60d375ba7574cd2")
 TEMPLATE_TRAIN_ID = env_template_id(
-    "TEMPLATE_TRAIN_ID", "914aa57881cf41f6ad09617a597ec888"
+    "TEMPLATE_TRAIN_ID", "7eb01103005240b8a1fb01b1f0afb5f6"
 )
 TEMPLATE_EVALUATE_ID = env_template_id(
-    "TEMPLATE_EVALUATE_ID", "fe4c8be1a64a4ac7a37f6201ff9b8093"
+    "TEMPLATE_EVALUATE_ID", "f14f1e7df5564ae68fd70467c8d344ea"
 )
 TEMPLATE_REGISTER_ID = env_template_id(
-    "TEMPLATE_REGISTER_ID", "86b25ce552d94b15b43faa47a6acc07c"
+    "TEMPLATE_REGISTER_ID", "5d25befdbf744c0083594c63e32f2782"
 )
 TEMPLATE_COMPARE_CHAMPION_ID = env_template_id(
-    "TEMPLATE_COMPARE_CHAMPION_ID", "7db02b943ecc415da3f26b4b0197c31e"
+    "TEMPLATE_COMPARE_CHAMPION_ID", "41566675612b4f6db64fe0627540ea72"
 )
 TEMPLATE_PROMOTE_CHAMPION_ID = env_template_id(
-    "TEMPLATE_PROMOTE_CHAMPION_ID", "fc26470c7daa471d8000e0ac5e12de62"
+    "TEMPLATE_PROMOTE_CHAMPION_ID", "b164587c7b7b4dca9fb5fff19c02dec0"
 )
 TEMPLATE_INFERENCE_ID = env_template_id(
-    "TEMPLATE_INFERENCE_ID", "74ca019210f947479918df99fce38f93"
+    "TEMPLATE_INFERENCE_ID", "14385e0d52034347b5a980cea4a6603d"
 )
 TEMPLATE_MONITORING_ID = env_template_id(
-    "TEMPLATE_MONITORING_ID", "c3b5ef6d0fb444d68fc28a5fbaa025e5"
+    "TEMPLATE_MONITORING_ID", "ca7fd6e036c746aeb659b6f05d1289c8"
 )
 TEMPLATE_ALERTING_ID = env_template_id(
-    "TEMPLATE_ALERTING_ID", "abc34a08a9d441e7916c67c047a08b13"
+    "TEMPLATE_ALERTING_ID", "ea7b3e0dad054f7dafbb9af607bf97a1"
 )
 TEMPLATE_AUTO_RETRAINING_ID = env_template_id(
-    "TEMPLATE_AUTO_RETRAINING_ID", "d83bb13dd70542268b47e2748c3fb6fb"
+    "TEMPLATE_AUTO_RETRAINING_ID", "55edd438e79f4b8483a6e576efcc0a35"
 )
 TEMPLATE_EXPLAIN_ID = env_template_id(
-    "TEMPLATE_EXPLAIN_ID", "ed552b304e14400785da48c0fa0450b5"
+    "TEMPLATE_EXPLAIN_ID", "23b1868494ee42d2bd724b289d711eab"
 )
 
 TRAINING_PIPELINE_ID = os.getenv(

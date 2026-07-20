@@ -1,7 +1,16 @@
+from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+sys.path = [p for p in sys.path if not (p == "/vc-mco" or p.startswith("/vc-mco/"))]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
 from datetime import datetime
 import time
 
 from clearml.automation import PipelineController
+from clearml import Task
 
 from config import (
     CLEARML_SERVER_URL,
@@ -16,6 +25,8 @@ from pipelines.specs import (
     build_pipeline_manifest,
     validate_pipeline_specs,
 )
+
+Task.force_requirements_env_freeze(requirements_file="requirements-controller.txt")
 
 
 def detect_run_mode() -> str:
@@ -73,6 +84,10 @@ def main() -> None:
         name=TRAINING_PIPELINE_NAME,
         version=DEPLOYMENT_VERSION,
     )
+    pipe.task.set_script(
+        working_dir=".",
+        entry_point="pipelines/training_pipeline.py",
+    )
 
     if run_mode == "AUTOMATED":
         pipe.task.set_tags(["pipeline", "training", "automated"])
@@ -114,7 +129,7 @@ def main() -> None:
     print(f"   Run Mode: {run_mode}")
     print("=" * 70)
 
-    pipe.start()
+    pipe.start(queue=SERVICES_QUEUE)
     pipeline_id = pipe.task.id
 
     print("=" * 70)

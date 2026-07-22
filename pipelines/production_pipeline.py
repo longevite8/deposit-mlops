@@ -17,6 +17,7 @@ from config import (
     DEPLOYMENT_VERSION,
     PRODUCTION_PIPELINE_NAME,
     PROJECT_PIPELINE,
+    RUN_PIPELINE_CONTROLLER_LOCALLY,
     SERVICES_QUEUE,
 )
 from pipelines.specs import (
@@ -105,7 +106,10 @@ def main() -> None:
     print("📌 Starting Production Pipeline...")
     print("=" * 70)
 
-    pipe.start(queue=SERVICES_QUEUE)
+    if RUN_PIPELINE_CONTROLLER_LOCALLY:
+        pipe.start_locally(run_pipeline_steps_locally=False)
+    else:
+        pipe.start(queue=SERVICES_QUEUE)
     pipeline_id = pipe.task.id
 
     print("=" * 70)

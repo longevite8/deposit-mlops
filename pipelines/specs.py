@@ -65,7 +65,9 @@ def validate_pipeline_specs(
 ) -> None:
     """Fail fast when a pipeline references missing template IDs."""
 
-    required_ids = {spec.template_id_name: spec.template_id(config_module) for spec in specs}
+    required_ids = {
+        spec.template_id_name: spec.template_id(config_module) for spec in specs
+    }
     config_module.validate_config(required_ids=required_ids)
 
 
@@ -184,6 +186,45 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
         template_id_name="TEMPLATE_PROMOTE_CHAMPION_ID",
         parents=("compare_champion",),
         parameter_override={"General/compare_task_id": "${compare_champion.id}"},
+    ),
+    PipelineStepSpec(
+        name="deploy_serving",
+        template_id_name="TEMPLATE_DEPLOY_SERVING_ID",
+        parents=("promote_champion",),
+        parameter_override={
+            "General/promote_task_id": "${promote_champion.id}",
+            "General/service_id": config.CLEARML_SERVING_SERVICE_ID,
+            "General/auto_create_service": config.AUTO_CREATE_CLEARML_SERVING_SERVICE,
+            "General/service_name": config.CLEARML_SERVING_SERVICE_NAME,
+            "General/service_project": config.CLEARML_SERVING_PROJECT,
+            "General/base_serving_url": config.CLEARML_BASE_SERVING_URL,
+            "General/inference_base_url": config.CLEARML_SERVING_BASE_URL,
+            "General/metric_log_freq": config.CLEARML_SERVING_METRIC_LOG_FREQ,
+            "General/endpoint_prefix": config.CLEARML_SERVING_ENDPOINT_PREFIX,
+            "General/endpoint": config.CLEARML_SERVING_ENDPOINT,
+            "General/endpoint_version": config.CLEARML_SERVING_ENDPOINT_VERSION,
+            "General/preprocess": config.CLEARML_SERVING_PREPROCESS,
+            "General/engine": config.CLEARML_SERVING_ENGINE,
+            "General/alias": config.CLEARML_SERVING_ALIAS,
+            "General/horizon": config.FORECAST_HORIZON,
+        },
+        cache_executed_step=False,
+        execution_queue_name="SERVICES_QUEUE",
+    ),
+    PipelineStepSpec(
+        name="verify_endpoint",
+        template_id_name="TEMPLATE_VERIFY_ENDPOINT_ID",
+        parents=("deploy_serving",),
+        parameter_override={
+            "General/deploy_serving_task_id": "${deploy_serving.id}",
+            "General/base_url": config.CLEARML_SERVING_BASE_URL,
+            "General/endpoint_prefix": config.CLEARML_SERVING_ENDPOINT_PREFIX,
+            "General/endpoint": config.CLEARML_SERVING_ENDPOINT,
+            "General/version": config.CLEARML_SERVING_ENDPOINT_VERSION,
+            "General/horizon": config.FORECAST_HORIZON,
+        },
+        cache_executed_step=False,
+        execution_queue_name="SERVICES_QUEUE",
     ),
 )
 

@@ -70,6 +70,27 @@ compare_lineage = wait_for_artifact(
 candidate_win = compare_summary.get("candidate_win", False)
 
 if not candidate_win:
+    promote_summary = {
+        "promoted": False,
+        "status": "SKIPPED",
+        "reason": "Candidate model did not win or does not exist.",
+        "champion_model_id": "",
+        "previous_champion_model_id": "",
+        "promotion_time": str(datetime.now()),
+    }
+    promote_lineage = {
+        "promote_task_id": task.id,
+        "compare_task_id": compare_lineage.get("compare_task_id", compare_task.id),
+        "register_task_id": compare_lineage.get("register_task_id", ""),
+        "train_task_id": compare_lineage.get("train_task_id", ""),
+        "evaluate_task_id": compare_lineage.get("evaluate_task_id", ""),
+        "hpo_task_id": compare_lineage.get("hpo_task_id", ""),
+        "feature_dataset_id": compare_lineage.get("feature_dataset_id", ""),
+        "champion_model_id": "",
+    }
+    task.upload_artifact("promote_summary", promote_summary)
+    task.upload_artifact("promote_lineage", promote_lineage)
+    task.flush()
     task.get_logger().report_text(
         "Candidate model did not win or does not exist. Skipping promotion."
     )

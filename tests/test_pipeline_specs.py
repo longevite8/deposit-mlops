@@ -26,6 +26,8 @@ def fake_config(**overrides):
         "TEMPLATE_COMPARE_CHAMPION_ID": "compare-template",
         "TEMPLATE_PROMOTE_CHAMPION_ID": "promote-template",
         "TEMPLATE_EXPLAIN_ID": "explain-template",
+        "TEMPLATE_DEPLOY_SERVING_ID": "deploy-serving-template",
+        "TEMPLATE_VERIFY_ENDPOINT_ID": "verify-endpoint-template",
         "TEMPLATE_INFERENCE_ID": "inference-template",
         "TEMPLATE_MONITORING_ID": "monitoring-template",
         "TEMPLATE_ALERTING_ID": "alerting-template",
@@ -67,6 +69,8 @@ class PipelineSpecsTest(unittest.TestCase):
                 "explain_model",
                 "compare_champion",
                 "promote_champion",
+                "deploy_serving",
+                "verify_endpoint",
             ],
         )
 
@@ -79,6 +83,14 @@ class PipelineSpecsTest(unittest.TestCase):
                 "General/hpo_task_id": "${hpo.id}",
             },
         )
+        deploy_step = next(spec for spec in TRAINING_STEPS if spec.name == "deploy_serving")
+        verify_step = next(spec for spec in TRAINING_STEPS if spec.name == "verify_endpoint")
+        self.assertEqual(deploy_step.parents, ("promote_champion",))
+        self.assertEqual(verify_step.parents, ("deploy_serving",))
+        self.assertEqual(deploy_step.execution_queue(fake_config()), "services")
+        self.assertEqual(verify_step.execution_queue(fake_config()), "services")
+        self.assertFalse(deploy_step.cache_executed_step)
+        self.assertFalse(verify_step.cache_executed_step)
 
     def test_production_specs_define_expected_uncached_runtime_steps(self):
         self.assertEqual(

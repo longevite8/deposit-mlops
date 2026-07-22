@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from clearml import Task
-from subprocess import check_output
+from subprocess import check_output, run
 from config import (
     TEMPLATE_EXTRACT_NAME,
     TEMPLATE_FEATURE_NAME,
@@ -18,7 +18,9 @@ from config import (
     TEMPLATE_MONITORING_NAME,
     TEMPLATE_ALERTING_NAME,
     TEMPLATE_AUTO_RETRAINING_NAME,
+    TEMPLATE_DEPLOY_SERVING_NAME,
     TEMPLATE_EXPLAIN_NAME,
+    TEMPLATE_VERIFY_ENDPOINT_NAME,
     PROJECT_TEMPLATE,
 )
 
@@ -190,10 +192,46 @@ templates = [
         "TEMPLATE_EXPLAIN_ID",
         LIGHT_REQUIREMENTS_FILE,
     ),
+    (
+        TEMPLATE_DEPLOY_SERVING_NAME,
+        Task.TaskTypes.service,
+        "tasks/deploy_serving.py",
+        "TEMPLATE_DEPLOY_SERVING_ID",
+        LIGHT_REQUIREMENTS_FILE,
+    ),
+    (
+        TEMPLATE_VERIFY_ENDPOINT_NAME,
+        Task.TaskTypes.qc,
+        "tasks/verify_endpoint.py",
+        "TEMPLATE_VERIFY_ENDPOINT_ID",
+        LIGHT_REQUIREMENTS_FILE,
+    ),
 ]
 
+def current_worktree_diff() -> str:
+    """Return a git patch for tracked and untracked local changes."""
+
+    tracked_diff = check_output(["git", "diff", "--no-ext-diff"]).decode()
+    untracked = check_output(
+        ["git", "ls-files", "--others", "--exclude-standard"]
+    ).decode().splitlines()
+
+    untracked_diffs = []
+    for path in untracked:
+        result = run(
+            ["git", "diff", "--no-index", "--", "/dev/null", path],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.stdout:
+            untracked_diffs.append(result.stdout)
+
+    return "\n".join([tracked_diff, *untracked_diffs]).strip()
+
+
 current_commit = check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-current_diff = check_output(["git", "diff", "--no-ext-diff"]).decode()
+current_diff = current_worktree_diff()
 
 # Dictionary để lưu ID mới nhằm cập nhật vào config.py
 new_ids = {}

@@ -91,5 +91,6 @@ Vui lòng đọc tài liệu theo thứ tự dưới đây để hiểu rõ hệ
 2. [Hạ tầng & Agent](docs/02_infrastructure.md)
 3. [Quy trình Huấn luyện (Training Pipeline)](docs/03_training_pipeline.md)
 4. [Quy trình Vận hành (Production Pipeline)](docs/04_production_pipeline.md)
-5. [Giám sát & Drift](docs/05_monitoring_drift.md)
-6. [Xóa toàn bộ tài nguyên của dự án](docs/06_delete_project.md)
+5. [ClearML Serving Deployment](docs/07_serving_deployment.md)
+6. [Giám sát & Drift](docs/05_monitoring_drift.md)
+7. [Xóa toàn bộ tài nguyên của dự án](docs/06_delete_project.md)

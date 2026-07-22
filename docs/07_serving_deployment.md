@@ -1,0 +1,84 @@
+# ClearML Serving Deployment
+
+This project now supports deploying the promoted `champion` model to ClearML
+Serving after the training pipeline promotes a candidate.
+
+## Manual Deployment
+
+Run this first before relying on the pipeline step:
+
+```bash
+python -m scripts.py.serving.deploy_clearml_serving \
+  --service_id "$CLEARML_SERVING_SERVICE_ID"
+```
+
+If no service exists yet, set:
+
+```bash
+AUTO_CREATE_CLEARML_SERVING_SERVICE=true
+```
+
+The deploy command:
+
+1. Resolves the published ClearML model tagged `champion`.
+2. Adds it to the ClearML Serving service.
+3. Uses `serving/clearml_preprocess.py` as the request adapter.
+4. Stores endpoint metadata on the ClearML model.
+
+## Verification
+
+Check runtime reachability:
+
+```bash
+python -m scripts.py.serving.verify_clearml_serving
+```
+
+Check a model request:
+
+```bash
+python -m scripts.py.serving.verify_clearml_serving \
+  --payload_json examples/serving_payload.json
+```
+
+Default endpoint URL:
+
+```text
+http://127.0.0.1:8082/serve/deposit_cashflow/<endpoint-version>
+```
+
+## Pipeline Wiring
+
+The training pipeline now appends:
+
+```text
+promote_champion -> deploy_serving -> verify_endpoint
+```
+
+Register templates again before running the updated pipeline:
+
+```bash
+python register_templates.py
+```
+
+The registration script writes new template IDs to `.env`:
+
+```text
+TEMPLATE_DEPLOY_SERVING_ID=...
+TEMPLATE_VERIFY_ENDPOINT_ID=...
+```
+
+## Request Contract
+
+The serving preprocess accepts:
+
+```json
+{
+  "horizon": 7,
+  "history": [
+    {"date": "2026-01-01", "cashflow": 120000000}
+  ]
+}
+```
+
+It also accepts `rows` or `data` instead of `history`, and `ds`/`y` instead of
+`date`/`cashflow`.

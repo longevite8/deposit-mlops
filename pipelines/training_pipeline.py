@@ -16,6 +16,7 @@ from config import (
     CLEARML_SERVER_URL,
     DEPLOYMENT_VERSION,
     PROJECT_PIPELINE,
+    RUN_PIPELINE_CONTROLLER_LOCALLY,
     SERVICES_QUEUE,
     TRAINING_PIPELINE_NAME,
 )
@@ -129,7 +130,10 @@ def main() -> None:
     print(f"   Run Mode: {run_mode}")
     print("=" * 70)
 
-    pipe.start(queue=SERVICES_QUEUE)
+    if RUN_PIPELINE_CONTROLLER_LOCALLY:
+        pipe.start_locally(run_pipeline_steps_locally=False)
+    else:
+        pipe.start(queue=SERVICES_QUEUE)
     pipeline_id = pipe.task.id
 
     print("=" * 70)

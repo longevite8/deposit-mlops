@@ -8,9 +8,10 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from datetime import datetime
 import time
+from typing import Callable
 
 from clearml.automation import PipelineController
-from clearml import Task
+from clearml import Model, Task
 
 from config import (
     CLEARML_SERVER_URL,
@@ -30,24 +31,75 @@ from pipelines.specs import (
 Task.force_requirements_env_freeze(requirements_file="requirements-controller.txt")
 
 
-def wait_for_pipeline_start(pipeline_id: str, max_wait_time: int = 30) -> bool:
-    """Wait briefly for ClearML to move the controller out of initial states."""
+INITIAL_PIPELINE_STATUSES = {"created", "queued"}
+RUNNING_PIPELINE_STATUSES = {"in_progress"}
+FAILED_PIPELINE_STATUSES = {"failed", "aborted", "stopped"}
+SUCCESS_PIPELINE_STATUSES = {"completed", "published"}
+
+
+def find_published_champion_model(
+    model_query: Callable[..., list] | None = None,
+):
+    """Return the current published champion model, if one is available."""
+
+    model_query = model_query or Model.query_models
+    champion_models = model_query(
+        tags=["champion"],
+        only_published=True,
+        max_results=1,
+    )
+    return champion_models[0] if champion_models else None
+
+
+def validate_production_prerequisites(
+    model_query: Callable[..., list] | None = None,
+) -> None:
+    """Fail before launching production steps that require a champion model."""
+
+    champion_model = find_published_champion_model(model_query=model_query)
+    if champion_model:
+        print(f"✅ Published champion model found: {champion_model.id}")
+        return
+
+    raise RuntimeError(
+        "❌ No published champion model found for production inference.\n"
+        "   Run the training pipeline until a candidate passes evaluation, is "
+        "registered, and is promoted with the 'champion' tag.\n"
+        "   Required ClearML query: tags=['champion'], only_published=True"
+    )
+
+
+def wait_for_pipeline_start(
+    pipeline_id: str,
+    max_wait_time: int = 30,
+    task_getter: Callable[[str], Task] | None = None,
+) -> str:
+    """Wait briefly for ClearML to move the controller into a useful status."""
 
     wait_interval = 2
     elapsed_time = 0
+    task_getter = task_getter or (lambda task_id: Task.get_task(task_id=task_id))
+    last_status = "unknown"
 
     print(f"\n⏳ Waiting for pipeline to start (max {max_wait_time}s)...")
     while elapsed_time < max_wait_time:
         try:
-            from clearml import Task
-
-            current_pipeline_task = Task.get_task(task_id=pipeline_id)
+            current_pipeline_task = task_getter(pipeline_id)
             pipeline_status = current_pipeline_task.get_status()
+            last_status = pipeline_status
             print(f"   Pipeline status: {pipeline_status}")
 
-            if pipeline_status not in ["created", "queued", "in_progress"]:
+            if pipeline_status in FAILED_PIPELINE_STATUSES:
+                print(f"❌ Pipeline failed with status: {pipeline_status}")
+                return pipeline_status
+
+            if pipeline_status in RUNNING_PIPELINE_STATUSES | SUCCESS_PIPELINE_STATUSES:
                 print(f"✅ Pipeline status confirmed: {pipeline_status}")
-                return True
+                return pipeline_status
+
+            if pipeline_status not in INITIAL_PIPELINE_STATUSES:
+                print(f"⚠️ Pipeline status confirmed: {pipeline_status}")
+                return pipeline_status
 
             time.sleep(wait_interval)
             elapsed_time += wait_interval
@@ -56,11 +108,16 @@ def wait_for_pipeline_start(pipeline_id: str, max_wait_time: int = 30) -> bool:
             time.sleep(wait_interval)
             elapsed_time += wait_interval
 
-    return False
+    return last_status
 
 
 def main() -> None:
     validate_pipeline_specs(PRODUCTION_STEPS)
+    try:
+        validate_production_prerequisites()
+    except RuntimeError as e:
+        print(str(e))
+        raise SystemExit(1) from e
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     pipe = PipelineController(
@@ -123,7 +180,14 @@ def main() -> None:
     print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipeline_id}")
     print("=" * 70)
 
-    wait_for_pipeline_start(pipeline_id)
+    pipeline_status = wait_for_pipeline_start(pipeline_id)
+    if pipeline_status in FAILED_PIPELINE_STATUSES:
+        print("\n❌ Production Pipeline failed during startup.")
+        print(f"   Controller status: {pipeline_status}")
+        print(
+            f"   Inspect failed child steps at: {CLEARML_SERVER_URL}/tasks/{pipeline_id}"
+        )
+        raise SystemExit(1)
 
     print("\n📤 Finalizing task...")
     pipe.task.flush()

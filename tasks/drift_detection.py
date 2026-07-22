@@ -91,7 +91,9 @@ current_train_df = pd.read_parquet(local_path / "train.parquet")
 # Ghi chú: xử lý an toàn để đảm bảo reference_df và current_df luôn được khởi tạo
 try:
     champion_models = Model.query_models(
-        system_tags=["champion"],
+        tags=["champion"],
+        only_published=True,
+        max_results=1,
     )
 except Exception as e:
     task.get_logger().report_text(f"Error querying champion models: {e}")

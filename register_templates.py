@@ -20,7 +20,9 @@ from config import (
     TEMPLATE_AUTO_RETRAINING_NAME,
     TEMPLATE_DEPLOY_SERVING_NAME,
     TEMPLATE_EXPLAIN_NAME,
+    TEMPLATE_DEPLOY_CANDIDATE_SERVING_NAME,
     TEMPLATE_VERIFY_ENDPOINT_NAME,
+    TEMPLATE_VERIFY_CANDIDATE_ENDPOINT_NAME,
     PROJECT_TEMPLATE,
 )
 
@@ -200,10 +202,24 @@ templates = [
         LIGHT_REQUIREMENTS_FILE,
     ),
     (
+        TEMPLATE_DEPLOY_CANDIDATE_SERVING_NAME,
+        Task.TaskTypes.service,
+        "tasks/deploy_candidate_serving.py",
+        "TEMPLATE_DEPLOY_CANDIDATE_SERVING_ID",
+        LIGHT_REQUIREMENTS_FILE,
+    ),
+    (
         TEMPLATE_VERIFY_ENDPOINT_NAME,
         Task.TaskTypes.qc,
         "tasks/verify_endpoint.py",
         "TEMPLATE_VERIFY_ENDPOINT_ID",
+        LIGHT_REQUIREMENTS_FILE,
+    ),
+    (
+        TEMPLATE_VERIFY_CANDIDATE_ENDPOINT_NAME,
+        Task.TaskTypes.qc,
+        "tasks/verify_candidate_endpoint.py",
+        "TEMPLATE_VERIFY_CANDIDATE_ENDPOINT_ID",
         LIGHT_REQUIREMENTS_FILE,
     ),
 ]

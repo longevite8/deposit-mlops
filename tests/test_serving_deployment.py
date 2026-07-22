@@ -16,6 +16,12 @@ class ServingDeploymentTest(unittest.TestCase):
             "custom_endpoint",
         )
 
+    def test_endpoint_name_supports_candidate_staging_endpoint(self):
+        self.assertEqual(
+            endpoint_name("", "deposit/cashflow/candidate"),
+            "deposit_cashflow_candidate",
+        )
+
     def test_verify_endpoint_url_includes_version_when_present(self):
         args = argparse.Namespace(
             base_url="http://127.0.0.1:8082",

@@ -28,6 +28,8 @@ def fake_config(**overrides):
         "TEMPLATE_EXPLAIN_ID": "explain-template",
         "TEMPLATE_DEPLOY_SERVING_ID": "deploy-serving-template",
         "TEMPLATE_VERIFY_ENDPOINT_ID": "verify-endpoint-template",
+        "TEMPLATE_DEPLOY_CANDIDATE_SERVING_ID": "deploy-candidate-template",
+        "TEMPLATE_VERIFY_CANDIDATE_ENDPOINT_ID": "verify-candidate-template",
         "TEMPLATE_INFERENCE_ID": "inference-template",
         "TEMPLATE_MONITORING_ID": "monitoring-template",
         "TEMPLATE_ALERTING_ID": "alerting-template",
@@ -66,6 +68,8 @@ class PipelineSpecsTest(unittest.TestCase):
                 "train",
                 "evaluate",
                 "register",
+                "deploy_candidate_serving",
+                "verify_candidate_endpoint",
                 "explain_model",
                 "compare_champion",
                 "promote_champion",
@@ -83,12 +87,32 @@ class PipelineSpecsTest(unittest.TestCase):
                 "General/hpo_task_id": "${hpo.id}",
             },
         )
-        deploy_step = next(spec for spec in TRAINING_STEPS if spec.name == "deploy_serving")
-        verify_step = next(spec for spec in TRAINING_STEPS if spec.name == "verify_endpoint")
+        candidate_deploy_step = next(
+            spec for spec in TRAINING_STEPS if spec.name == "deploy_candidate_serving"
+        )
+        candidate_verify_step = next(
+            spec for spec in TRAINING_STEPS if spec.name == "verify_candidate_endpoint"
+        )
+        deploy_step = next(
+            spec for spec in TRAINING_STEPS if spec.name == "deploy_serving"
+        )
+        verify_step = next(
+            spec for spec in TRAINING_STEPS if spec.name == "verify_endpoint"
+        )
+        compare_step = next(
+            spec for spec in TRAINING_STEPS if spec.name == "compare_champion"
+        )
+        self.assertEqual(candidate_deploy_step.parents, ("register",))
+        self.assertEqual(candidate_verify_step.parents, ("deploy_candidate_serving",))
+        self.assertEqual(compare_step.parents, ("register",))
         self.assertEqual(deploy_step.parents, ("promote_champion",))
         self.assertEqual(verify_step.parents, ("deploy_serving",))
+        self.assertEqual(candidate_deploy_step.execution_queue(fake_config()), "services")
+        self.assertEqual(candidate_verify_step.execution_queue(fake_config()), "services")
         self.assertEqual(deploy_step.execution_queue(fake_config()), "services")
         self.assertEqual(verify_step.execution_queue(fake_config()), "services")
+        self.assertFalse(candidate_deploy_step.cache_executed_step)
+        self.assertFalse(candidate_verify_step.cache_executed_step)
         self.assertFalse(deploy_step.cache_executed_step)
         self.assertFalse(verify_step.cache_executed_step)
 

@@ -54,6 +54,17 @@ The training pipeline now appends:
 promote_champion -> deploy_serving -> verify_endpoint
 ```
 
+It also deploys published candidate models to a separate staging endpoint:
+
+```text
+register -> deploy_candidate_serving -> verify_candidate_endpoint
+```
+
+Candidate serving does not require champion promotion. If `register_model` does
+not publish a candidate, candidate deployment is skipped. If staging verification
+cannot reach the runtime, the verification result is recorded without failing the
+training pipeline.
+
 Register templates again before running the updated pipeline:
 
 ```bash
@@ -65,6 +76,15 @@ The registration script writes new template IDs to `.env`:
 ```text
 TEMPLATE_DEPLOY_SERVING_ID=...
 TEMPLATE_VERIFY_ENDPOINT_ID=...
+TEMPLATE_DEPLOY_CANDIDATE_SERVING_ID=...
+TEMPLATE_VERIFY_CANDIDATE_ENDPOINT_ID=...
+```
+
+Default endpoints:
+
+```text
+Champion:  http://127.0.0.1:8082/serve/deposit_cashflow/<endpoint-version>
+Candidate: http://127.0.0.1:8082/serve/deposit_cashflow_candidate/<model-id>
 ```
 
 ## Request Contract

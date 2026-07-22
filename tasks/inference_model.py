@@ -6,7 +6,8 @@ sys.path = [p for p in sys.path if not (p == "/vc-mco" or p.startswith("/vc-mco/
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import joblib
+from numbers import Number
+import time
 import pandas as pd
 
 from clearml import (
@@ -17,17 +18,14 @@ from clearml import (
 from pathlib import Path
 
 from config import (
+    FORECAST_UNIQUE_ID,
     PROJECT_TEMPLATE,
     TEMPLATE_INFERENCE_NAME,
-    FEATURE_COLUMNS,
 )
 
 from helpers import wait_for_artifact
-from business.inference import (
-    run_model_inference,
-    calculate_prediction_statistics,
-    build_output_dataframe,
-)  # THÊM
+from business.inference import calculate_prediction_statistics
+from business.forecasting import load_forecast_model_from_archive, prepare_forecast_frame
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -155,37 +153,55 @@ champion_model = champion_models[0]
 task.get_logger().report_text(f"✅ Loaded champion model: {champion_model.id}")
 
 model_path = champion_model.get_local_copy()
+if not model_path:
+    raise ValueError(f"Could not resolve local model archive for model_id={champion_model.id}")
 
-model = joblib.load(
-    model_path,
-)
+model = load_forecast_model_from_archive(model_path)
 
 # =====================================================
 # BUSINESS LOGIC: Begin
 # =====================================================
 
-X = latest_df[FEATURE_COLUMNS]
+history_df = prepare_forecast_frame(latest_df, unique_id=FORECAST_UNIQUE_ID)
 
-# Gọi logic inference từ business layer
-prediction, inference_time, inference_latency_ms = run_model_inference(model, X)
+start_time = time.time()
+forecasts = model.predict(df=history_df)
+inference_time = time.time() - start_time
 
-# Tính toán stats từ business layer
+forecast_columns = [
+    column
+    for column in forecasts.columns
+    if column not in {"unique_id", "ds", "cutoff", "y", "step", "month", "weekday"}
+    and pd.api.types.is_numeric_dtype(forecasts[column])
+]
+if not forecast_columns:
+    raise ValueError(f"No numeric forecast columns found: {list(forecasts.columns)}")
+
+champion_metadata = champion_model.get_all_metadata()
+metadata_primary_model = champion_metadata.get("primary_model", {}).get("value")
+primary_model = (
+    metadata_primary_model
+    if metadata_primary_model in forecast_columns
+    else forecast_columns[0]
+)
+prediction = forecasts[primary_model].to_numpy(dtype=float)
+inference_latency_ms = (
+    (inference_time / len(prediction)) * 1000 if len(prediction) > 0 else 0
+)
 pred_stats = calculate_prediction_statistics(prediction)
-
-# Xây dựng dataframe kết quả từ business layer
-prediction_df = build_output_dataframe(latest_df, prediction)
+prediction_df = forecasts.copy()
+prediction_df["prediction"] = prediction
 
 # =====================================================
 # BUSINESS LOGIC: End
 # =====================================================
 
 task.get_logger().report_text(
-    f"✅ Inference completed: {len(X)} samples in {inference_time:.4f}s"
+    f"✅ Inference completed: {len(prediction)} forecasts in {inference_time:.4f}s"
 )
 
 
 # Upload artifact
-champion_metadata = champion_model.get_all_metadata()
 inference_lineage = {
     "model_id": champion_model.id,
     "feature_dataset_id": feature_dataset_id,
@@ -200,7 +216,8 @@ inference_summary = {
     **pred_stats,
     "total_inference_time_sec": float(inference_time),
     "latency_ms_per_sample": float(inference_latency_ms),
-    "batch_size": len(X),
+    "batch_size": len(prediction),
+    "primary_model": primary_model,
 }
 
 task.upload_artifact(name="prediction_df", artifact_object=prediction_df)
@@ -213,7 +230,7 @@ task.upload_artifact("inference_lineage", inference_lineage)
 
 # Log scalars sử dụng dữ liệu từ inference_summary
 for key, val in inference_summary.items():
-    if key != "batch_size":  # Ví dụ: bỏ qua batch_size nếu đã log riêng
+    if key != "batch_size" and isinstance(val, Number):
         task.get_logger().report_single_value(key, val)
 
 # Prediction statistics
@@ -250,7 +267,7 @@ task.get_logger().report_single_value(
 
 task.get_logger().report_single_value(
     "inference_batch_size",
-    len(X),
+    len(prediction),
 )
 
 # Markdown dashboard
@@ -278,7 +295,7 @@ task.get_logger().report_text(
 |--------|-------|
 | Total Time (sec) | {inference_time:.4f} |
 | Latency (ms/sample) | {inference_latency_ms:.4f} |
-| Batch Size | {len(X)} |
+| Batch Size | {len(prediction)} |
 """
 )
 

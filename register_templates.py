@@ -224,13 +224,19 @@ templates = [
     ),
 ]
 
-def current_worktree_diff() -> str:
+def current_worktree_diff(paths: list[str] | None = None) -> str:
     """Return a git patch for tracked and untracked local changes."""
 
-    tracked_diff = check_output(["git", "diff", "--no-ext-diff"]).decode()
+    diff_command = ["git", "diff", "--no-ext-diff", "--unified=0"]
+    if paths:
+        diff_command.extend(["--", *paths])
+    tracked_diff = check_output(diff_command).decode()
     untracked = check_output(
         ["git", "ls-files", "--others", "--exclude-standard"]
     ).decode().splitlines()
+    if paths:
+        path_set = set(paths)
+        untracked = [path for path in untracked if path in path_set]
 
     untracked_diffs = []
     for path in untracked:
@@ -247,7 +253,16 @@ def current_worktree_diff() -> str:
 
 
 current_commit = check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-current_diff = current_worktree_diff()
+include_worktree_diff = os.getenv("CLEARML_INCLUDE_WORKTREE_DIFF", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "y",
+}
+if include_worktree_diff:
+    print("⚠️ Including local uncommitted script diffs in template tasks")
+else:
+    print("✅ Registering templates from Git commit only (no worktree diff)")
 
 # Dictionary để lưu ID mới nhằm cập nhật vào config.py
 new_ids = {}
@@ -263,8 +278,8 @@ for name, task_type, script, config_var, requirements_file in templates:
         working_directory=".",
         requirements_file=requirements_file,
     )
-    if current_diff:
-        task.set_script(diff=current_diff)
+    script_diff = current_worktree_diff([script]) if include_worktree_diff else ""
+    task.set_script(diff=script_diff)
 
     task.upload_artifact("template_commit", current_commit)
     new_ids[config_var] = task.id

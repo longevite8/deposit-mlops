@@ -16,6 +16,7 @@ import pandas as pd
 
 
 from config import (
+    DATE_COLUMN,
     PROJECT_TEMPLATE,
     TEMPLATE_MONITORING_NAME,
     TARGET_COLUMN,
@@ -152,8 +153,53 @@ drift_status = drift_summary["status"]
 # Ground truth vs Prediction
 # =====================================================
 
-y_true = actual_df[TARGET_COLUMN]
-y_pred = prediction_df["prediction"]
+if "prediction" not in prediction_df:
+    raise ValueError(f"prediction_df missing prediction column: {list(prediction_df.columns)}")
+
+prediction_df = prediction_df.copy()
+prediction_df["prediction"] = pd.to_numeric(
+    prediction_df["prediction"],
+    errors="coerce",
+)
+comparison_mode = "tail"
+
+if "ds" in prediction_df and DATE_COLUMN in actual_df:
+    actual_for_merge = actual_df[[DATE_COLUMN, TARGET_COLUMN]].copy()
+    actual_for_merge["ds"] = pd.to_datetime(
+        actual_for_merge[DATE_COLUMN],
+        errors="coerce",
+    ).dt.normalize()
+    prediction_for_merge = prediction_df[["ds", "prediction"]].copy()
+    prediction_for_merge["ds"] = pd.to_datetime(
+        prediction_for_merge["ds"],
+        errors="coerce",
+    ).dt.normalize()
+    aligned_df = prediction_for_merge.merge(
+        actual_for_merge[["ds", TARGET_COLUMN]],
+        on="ds",
+        how="inner",
+    )
+    if not aligned_df.empty:
+        comparison_mode = "date_overlap"
+    else:
+        aligned_df = pd.DataFrame()
+else:
+    aligned_df = pd.DataFrame()
+
+if aligned_df.empty:
+    n_predictions = min(len(prediction_df), len(actual_df))
+    aligned_df = actual_df.tail(n_predictions).copy()
+    aligned_df["prediction"] = prediction_df["prediction"].tail(n_predictions).to_numpy(
+        dtype=float
+    )
+
+aligned_df[TARGET_COLUMN] = pd.to_numeric(aligned_df[TARGET_COLUMN], errors="coerce")
+aligned_df = aligned_df.dropna(subset=[TARGET_COLUMN, "prediction"])
+if aligned_df.empty:
+    raise ValueError("No aligned actual/prediction rows available for monitoring.")
+
+y_true = aligned_df[TARGET_COLUMN]
+y_pred = aligned_df["prediction"]
 
 # =====================================================
 # BUSINESS LOGIC: Begin
@@ -185,6 +231,8 @@ monitoring_summary = {
     "drift_ratio": float(drift_ratio),
     "model_id": inference_lineage["model_id"],
     "feature_dataset_id": feature_dataset_id,
+    "comparison_mode": comparison_mode,
+    "n_compared_rows": len(aligned_df),
 }
 
 monitoring_metrics = {**monitoring_metrics_values, **pred_stats}

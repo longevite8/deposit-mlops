@@ -27,6 +27,8 @@ from config import (
     CLEARML_SERVING_SERVICE_ID,
     CLEARML_SERVING_SERVICE_NAME,
     FORECAST_HORIZON,
+    forecast_horizon_tag,
+    forecast_horizon_endpoint_suffix,
 )
 
 
@@ -59,10 +61,18 @@ def parse_service_id(output: str) -> str | None:
     return None
 
 
-def endpoint_name(endpoint_prefix: str, endpoint: str = "") -> str:
-    if endpoint:
-        return endpoint.strip("/").replace("/", "_")
-    return endpoint_prefix.strip("/").replace("/", "_")
+def endpoint_name(
+    endpoint_prefix: str,
+    endpoint: str = "",
+    *,
+    horizon: int | str | None = None,
+) -> str:
+    base = endpoint.strip("/") if endpoint else endpoint_prefix.strip("/")
+    name = base.replace("/", "_")
+    if horizon is None:
+        return name
+    suffix = forecast_horizon_endpoint_suffix(horizon)
+    return name if name.endswith(f"_{suffix}") else f"{name}_{suffix}"
 
 
 def endpoint_version(model: Model, explicit_version: str = "") -> str:
@@ -75,13 +85,20 @@ def endpoint_version(model: Model, explicit_version: str = "") -> str:
     return model.id
 
 
-def resolve_model(model_id: str = "", alias: str = "champion") -> Model:
+def resolve_model(
+    model_id: str = "",
+    alias: str = "champion",
+    horizon: int | str | None = None,
+) -> Model:
     if model_id:
         return Model(model_id=model_id)
 
-    models = Model.query_models(tags=[alias], only_published=True, max_results=1)
+    tags = [alias]
+    if horizon is not None:
+        tags.append(forecast_horizon_tag(horizon))
+    models = Model.query_models(tags=tags, only_published=True, max_results=1)
     if not models:
-        raise ValueError(f"No published ClearML model found with tag '{alias}'.")
+        raise ValueError(f"No published ClearML model found with tags {tags}.")
     return models[0]
 
 
@@ -144,11 +161,11 @@ def deploy_model(args) -> dict[str, Any]:
             "Install clearml-serving on the deployment agent or run deployment elsewhere."
         )
 
-    model = resolve_model(args.model_id, args.alias)
+    model = resolve_model(args.model_id, args.alias, args.horizon)
     args.service_id = ensure_service_id(args)
     configure_service(args)
 
-    endpoint = endpoint_name(args.endpoint_prefix, args.endpoint)
+    endpoint = endpoint_name(args.endpoint_prefix, args.endpoint, horizon=args.horizon)
     version = endpoint_version(model, args.endpoint_version)
 
     command = [

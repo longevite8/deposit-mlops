@@ -86,18 +86,21 @@ register_lineage = wait_for_artifact(
 )
 
 if not register_summary.get("published", False):
+    forecast_horizon = int(params["horizon"])
     deploy_summary = {
         "deployed": False,
         "skipped": True,
         "reason": "Candidate model was not published.",
         "register_task_id": register_task.id,
         "candidate_model_id": register_lineage.get("model_id", ""),
+        "forecast_horizon": forecast_horizon,
     }
     deploy_lineage = {
         "deploy_candidate_serving_task_id": task.id,
         "register_task_id": register_task.id,
         "candidate_model_id": register_lineage.get("model_id", ""),
         "feature_dataset_id": register_lineage.get("feature_dataset_id", ""),
+        "forecast_horizon": forecast_horizon,
     }
     task.upload_artifact("candidate_deploy_summary", deploy_summary)
     task.upload_artifact("candidate_deploy_lineage", deploy_lineage)
@@ -106,6 +109,7 @@ if not register_summary.get("published", False):
     raise SystemExit(0)
 
 model_id = register_summary["model_id"]
+forecast_horizon = int(params["horizon"])
 deployment = deploy_model(
     argparse.Namespace(
         model_id=model_id,
@@ -122,7 +126,7 @@ deployment = deploy_model(
         endpoint_version=str(params["endpoint_version"] or model_id),
         preprocess=str(params["preprocess"]),
         engine=str(params["engine"]),
-        horizon=int(params["horizon"]),
+        horizon=forecast_horizon,
     )
 )
 
@@ -130,6 +134,7 @@ deploy_summary = {
     **deployment,
     "register_task_id": register_task.id,
     "candidate_model_id": model_id,
+    "forecast_horizon": forecast_horizon,
 }
 deploy_lineage = {
     "deploy_candidate_serving_task_id": task.id,
@@ -139,6 +144,7 @@ deploy_lineage = {
     "service_id": deployment["service_id"],
     "endpoint": deployment["endpoint"],
     "endpoint_version": deployment["endpoint_version"],
+    "forecast_horizon": forecast_horizon,
 }
 
 task.upload_artifact("candidate_deploy_summary", deploy_summary)

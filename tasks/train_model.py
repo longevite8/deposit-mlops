@@ -25,6 +25,7 @@ from config import (
     FORECAST_CV_WINDOWS,
     FORECAST_EVAL_HORIZON,
     FORECAST_HORIZON,
+    FORECAST_HORIZON_METADATA_KEY,
     FORECAST_INPUT_SIZE,
     FORECAST_LEARNING_RATE,
     FORECAST_LOSS,
@@ -147,6 +148,7 @@ output_model = OutputModel(
 output_model.update_weights(weights_filename=str(model_archive_path))
 output_model.set_metadata("model_framework", "NeuralForecast")
 output_model.set_metadata("forecast_unique_id", str(params["unique_id"]))
+output_model.set_metadata(FORECAST_HORIZON_METADATA_KEY, str(forecast_config.horizon))
 output_model.set_metadata("feature_dataset_id", feature_dataset_id)
 output_model.set_metadata("feature_task_id", feature_task.id)
 output_model.set_metadata("train_task_id", task.id)

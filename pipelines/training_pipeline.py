@@ -15,6 +15,7 @@ from clearml import Task
 from config import (
     CLEARML_SERVER_URL,
     DEPLOYMENT_VERSION,
+    FORECAST_HORIZONS,
     PROJECT_PIPELINE,
     RUN_PIPELINE_CONTROLLER_LOCALLY,
     SERVICES_QUEUE,
@@ -23,6 +24,7 @@ from config import (
 from pipelines.specs import (
     TRAINING_STEPS,
     add_specs_to_pipeline,
+    build_training_steps_for_horizons,
     build_pipeline_manifest,
     validate_pipeline_specs,
 )
@@ -76,7 +78,8 @@ def wait_for_pipeline_start(pipeline_id: str, max_wait_time: int = 30) -> bool:
 
 
 def main() -> None:
-    validate_pipeline_specs(TRAINING_STEPS)
+    training_steps = build_training_steps_for_horizons(FORECAST_HORIZONS)
+    validate_pipeline_specs(training_steps)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     run_mode = detect_run_mode()
@@ -116,12 +119,12 @@ def main() -> None:
             deployment_version=DEPLOYMENT_VERSION,
             run_mode=run_mode,
             timestamp=timestamp,
-            specs=TRAINING_STEPS,
+            specs=training_steps,
         ),
     )
 
     pipe.set_default_execution_queue(SERVICES_QUEUE)
-    add_specs_to_pipeline(pipe, TRAINING_STEPS)
+    add_specs_to_pipeline(pipe, training_steps)
 
     pipe.task.flush()
 

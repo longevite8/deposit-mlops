@@ -14,8 +14,11 @@ from clearml import (
 )
 
 from config import (
+    FORECAST_HORIZON,
+    FORECAST_HORIZON_METADATA_KEY,
     PROJECT_TEMPLATE,
     TEMPLATE_PROMOTE_CHAMPION_NAME,
+    forecast_horizon_tag,
 )
 
 from helpers import wait_for_artifact  # THÊM: Import từ helper
@@ -68,6 +71,12 @@ compare_lineage = wait_for_artifact(
 )
 
 candidate_win = compare_summary.get("candidate_win", False)
+forecast_horizon = int(
+    compare_summary.get("forecast_horizon")
+    or compare_lineage.get("forecast_horizon")
+    or FORECAST_HORIZON
+)
+horizon_tag = forecast_horizon_tag(forecast_horizon)
 
 if not candidate_win:
     promote_summary = {
@@ -76,6 +85,7 @@ if not candidate_win:
         "reason": "Candidate model did not win or does not exist.",
         "champion_model_id": "",
         "previous_champion_model_id": "",
+        "forecast_horizon": forecast_horizon,
         "promotion_time": str(datetime.now()),
     }
     promote_lineage = {
@@ -87,6 +97,7 @@ if not candidate_win:
         "hpo_task_id": compare_lineage.get("hpo_task_id", ""),
         "feature_dataset_id": compare_lineage.get("feature_dataset_id", ""),
         "champion_model_id": "",
+        "forecast_horizon": forecast_horizon,
     }
     task.upload_artifact("promote_summary", promote_summary)
     task.upload_artifact("promote_lineage", promote_lineage)
@@ -115,7 +126,7 @@ if not candidate_win:
 # =====================================================
 
 old_models = Model.query_models(
-    tags=["champion"],
+    tags=["champion", horizon_tag],
     only_published=True,
     max_results=1,
 )
@@ -173,6 +184,8 @@ new_tags = [tag for tag in new_tags if tag != "candidate"]
 
 if "champion" not in new_tags:
     new_tags.append("champion")
+if horizon_tag not in new_tags:
+    new_tags.append(horizon_tag)
 
 client.models.edit(
     model=new_model_id,
@@ -182,6 +195,10 @@ client.models.edit(
 new_model.set_metadata(
     "promoted_time",
     str(datetime.now()),
+)
+new_model.set_metadata(
+    FORECAST_HORIZON_METADATA_KEY,
+    str(forecast_horizon),
 )
 
 new_model.set_metadata(
@@ -229,6 +246,7 @@ promote_summary = {
     "status": "SUCCESS",
     "champion_model_id": new_model_id,
     "previous_champion_model_id": previous_champion_model_id,
+    "forecast_horizon": forecast_horizon,
     "promotion_time": str(datetime.now()),
 }
 
@@ -241,6 +259,7 @@ promote_lineage = {
     "hpo_task_id": compare_lineage["hpo_task_id"],
     "feature_dataset_id": compare_lineage["feature_dataset_id"],
     "champion_model_id": new_model_id,
+    "forecast_horizon": forecast_horizon,
 }
 
 task.upload_artifact(

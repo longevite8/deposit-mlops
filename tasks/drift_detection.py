@@ -19,9 +19,11 @@ from clearml import (
 )
 
 from config import (
+    FORECAST_HORIZON,
     PROJECT_TEMPLATE,
     PROJECT_DATASET,
     TEMPLATE_DRIFT_NAME,
+    forecast_horizon_tag,
 )
 
 from helpers import wait_for_artifact, wait_for_metadata
@@ -91,7 +93,7 @@ current_train_df = pd.read_parquet(local_path / "train.parquet")
 # Ghi chú: xử lý an toàn để đảm bảo reference_df và current_df luôn được khởi tạo
 try:
     champion_models = Model.query_models(
-        tags=["champion"],
+        tags=["champion", forecast_horizon_tag(FORECAST_HORIZON)],
         only_published=True,
         max_results=1,
     )

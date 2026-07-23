@@ -34,7 +34,7 @@ class PipelineStatusTest(unittest.TestCase):
             calls,
             [
                 {
-                    "tags": ["champion"],
+                    "tags": ["champion", "horizon:30"],
                     "only_published": True,
                     "max_results": 1,
                 }
@@ -49,6 +49,17 @@ class PipelineStatusTest(unittest.TestCase):
 
     def test_validate_prerequisites_accepts_published_champion(self):
         validate_production_prerequisites(model_query=lambda **kwargs: [FakeModel()])
+
+    def test_find_published_champion_model_accepts_horizon_override(self):
+        calls = []
+
+        def model_query(**kwargs):
+            calls.append(kwargs)
+            return [FakeModel()]
+
+        find_published_champion_model(horizon=7, model_query=model_query)
+
+        self.assertEqual(calls[0]["tags"], ["champion", "horizon:7"])
 
     def test_wait_returns_failed_status_immediately(self):
         calls = []

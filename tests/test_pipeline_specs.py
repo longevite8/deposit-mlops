@@ -6,6 +6,7 @@ from pipelines.specs import (
     TRAINING_STEPS,
     add_specs_to_pipeline,
     build_pipeline_manifest,
+    build_training_steps_for_horizons,
     validate_pipeline_specs,
 )
 
@@ -34,6 +35,8 @@ def fake_config(**overrides):
         "TEMPLATE_MONITORING_ID": "monitoring-template",
         "TEMPLATE_ALERTING_ID": "alerting-template",
         "TEMPLATE_AUTO_RETRAINING_ID": "auto-retraining-template",
+        "FORECAST_HORIZON": 30,
+        "FORECAST_HORIZONS": (30,),
     }
     values.update(overrides)
     module = types.SimpleNamespace(**values)
@@ -85,6 +88,7 @@ class PipelineSpecsTest(unittest.TestCase):
             {
                 "General/feature_task_id": "${feature.id}",
                 "General/hpo_task_id": "${hpo.id}",
+                "General/horizon": 30,
             },
         )
         candidate_deploy_step = next(
@@ -107,6 +111,8 @@ class PipelineSpecsTest(unittest.TestCase):
         self.assertEqual(compare_step.parents, ("register",))
         self.assertEqual(deploy_step.parents, ("promote_champion",))
         self.assertEqual(verify_step.parents, ("deploy_serving",))
+        evaluate_step = next(spec for spec in TRAINING_STEPS if spec.name == "evaluate")
+        self.assertEqual(evaluate_step.parameter_override["General/eval_horizon"], 30)
         self.assertEqual(candidate_deploy_step.execution_queue(fake_config()), "services")
         self.assertEqual(candidate_verify_step.execution_queue(fake_config()), "services")
         self.assertEqual(deploy_step.execution_queue(fake_config()), "services")
@@ -134,6 +140,42 @@ class PipelineSpecsTest(unittest.TestCase):
         monitoring = next(spec for spec in PRODUCTION_STEPS if spec.name == "monitoring")
         self.assertEqual(monitoring.parents, ("inference", "drift"))
         self.assertIn(("need_retraining", "need_retraining"), monitoring.monitor_metrics)
+        inference = next(spec for spec in PRODUCTION_STEPS if spec.name == "inference")
+        self.assertEqual(inference.parameter_override["General/horizon"], 30)
+
+    def test_build_training_steps_for_horizons_expands_horizon_branches(self):
+        steps = build_training_steps_for_horizons((7, 14))
+        names = [spec.name for spec in steps]
+
+        self.assertIn("train_h7", names)
+        self.assertIn("train_h14", names)
+        self.assertIn("deploy_serving_h7", names)
+        self.assertIn("verify_endpoint_h14", names)
+
+        train_h7 = next(spec for spec in steps if spec.name == "train_h7")
+        evaluate_h14 = next(spec for spec in steps if spec.name == "evaluate_h14")
+        deploy_h7 = next(spec for spec in steps if spec.name == "deploy_serving_h7")
+
+        self.assertEqual(train_h7.parents, ("hpo",))
+        self.assertEqual(train_h7.parameter_override["General/horizon"], 7)
+        self.assertEqual(
+            evaluate_h14.parameter_override["General/train_task_id"],
+            "${train_h14.id}",
+        )
+        self.assertEqual(evaluate_h14.parameter_override["General/eval_horizon"], 14)
+        self.assertEqual(deploy_h7.parents, ("promote_champion_h7",))
+        self.assertEqual(deploy_h7.parameter_override["General/horizon"], 7)
+
+    def test_build_training_steps_for_single_nondefault_horizon_preserves_names(self):
+        steps = build_training_steps_for_horizons((7,))
+        names = [spec.name for spec in steps]
+        train = next(spec for spec in steps if spec.name == "train")
+        evaluate = next(spec for spec in steps if spec.name == "evaluate")
+
+        self.assertIn("deploy_serving", names)
+        self.assertNotIn("deploy_serving_h7", names)
+        self.assertEqual(train.parameter_override["General/horizon"], 7)
+        self.assertEqual(evaluate.parameter_override["General/eval_horizon"], 7)
 
     def test_add_specs_to_pipeline_resolves_template_ids_and_queues(self):
         pipeline = FakePipeline()

@@ -92,6 +92,7 @@ verify_lineage = {
         "endpoint_version",
         deploy_lineage.get("endpoint_version", ""),
     ),
+    "forecast_horizon": int(params["horizon"]),
 }
 
 task.upload_artifact("verify_endpoint_summary", verify_summary)

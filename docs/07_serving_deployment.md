@@ -80,11 +80,14 @@ TEMPLATE_DEPLOY_CANDIDATE_SERVING_ID=...
 TEMPLATE_VERIFY_CANDIDATE_ENDPOINT_ID=...
 ```
 
-Default endpoints:
+Default endpoints are horizon-specific. With `FORECAST_HORIZONS=7,14,30`, the
+training pipeline deploys separate candidate and champion endpoints per horizon:
 
 ```text
-Champion:  http://127.0.0.1:8082/serve/deposit_cashflow/<endpoint-version>
-Candidate: http://127.0.0.1:8082/serve/deposit_cashflow_candidate/<model-id>
+Champion h7 : http://127.0.0.1:8082/serve/deposit_cashflow_h7/<endpoint-version>
+Champion h14: http://127.0.0.1:8082/serve/deposit_cashflow_h14/<endpoint-version>
+Champion h30: http://127.0.0.1:8082/serve/deposit_cashflow_h30/<endpoint-version>
+Candidate   : http://127.0.0.1:8082/serve/deposit_cashflow_candidate_h<days>/<model-id>
 ```
 
 ## Request Contract

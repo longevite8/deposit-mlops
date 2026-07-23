@@ -16,10 +16,12 @@ from clearml import Model, Task
 from config import (
     CLEARML_SERVER_URL,
     DEPLOYMENT_VERSION,
+    FORECAST_HORIZON,
     PRODUCTION_PIPELINE_NAME,
     PROJECT_PIPELINE,
     RUN_PIPELINE_CONTROLLER_LOCALLY,
     SERVICES_QUEUE,
+    forecast_horizon_tag,
 )
 from pipelines.specs import (
     PRODUCTION_STEPS,
@@ -38,13 +40,14 @@ SUCCESS_PIPELINE_STATUSES = {"completed", "published"}
 
 
 def find_published_champion_model(
+    horizon: int = FORECAST_HORIZON,
     model_query: Callable[..., list] | None = None,
 ):
-    """Return the current published champion model, if one is available."""
+    """Return the published champion model for one forecast horizon."""
 
     model_query = model_query or Model.query_models
     champion_models = model_query(
-        tags=["champion"],
+        tags=["champion", forecast_horizon_tag(horizon)],
         only_published=True,
         max_results=1,
     )
@@ -52,20 +55,24 @@ def find_published_champion_model(
 
 
 def validate_production_prerequisites(
+    horizon: int = FORECAST_HORIZON,
     model_query: Callable[..., list] | None = None,
 ) -> None:
-    """Fail before launching production steps that require a champion model."""
+    """Fail before launching production steps that require a horizon champion."""
 
-    champion_model = find_published_champion_model(model_query=model_query)
+    champion_model = find_published_champion_model(
+        horizon=horizon,
+        model_query=model_query,
+    )
     if champion_model:
-        print(f"✅ Published champion model found: {champion_model.id}")
+        print(f"✅ Published champion model found for horizon {horizon}: {champion_model.id}")
         return
 
     raise RuntimeError(
-        "❌ No published champion model found for production inference.\n"
+        f"❌ No published champion model found for horizon {horizon}.\n"
         "   Run the training pipeline until a candidate passes evaluation, is "
-        "registered, and is promoted with the 'champion' tag.\n"
-        "   Required ClearML query: tags=['champion'], only_published=True"
+        "registered, and is promoted with the matching horizon tag.\n"
+        f"   Required ClearML query: tags=['champion', '{forecast_horizon_tag(horizon)}'], only_published=True"
     )
 
 
@@ -139,6 +146,7 @@ def main() -> None:
             "deployment_version": DEPLOYMENT_VERSION,
             "run_mode": "AUTOMATED",
             "timestamp": timestamp,
+            "horizon": FORECAST_HORIZON,
         },
         name="Pipeline Args",
     )

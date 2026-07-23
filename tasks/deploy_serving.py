@@ -87,21 +87,28 @@ promote_lineage = wait_for_artifact(
 )
 
 if not promote_summary.get("promoted", False):
+    forecast_horizon = int(params["horizon"])
     deploy_summary = {
         "deployed": False,
         "reason": "Promotion did not produce a champion model.",
         "promote_task_id": promote_task.id,
+        "forecast_horizon": forecast_horizon,
     }
     task.upload_artifact("deploy_serving_summary", deploy_summary)
     task.upload_artifact(
         "deploy_serving_lineage",
-        {"deploy_serving_task_id": task.id, "promote_task_id": promote_task.id},
+        {
+            "deploy_serving_task_id": task.id,
+            "promote_task_id": promote_task.id,
+            "forecast_horizon": forecast_horizon,
+        },
     )
     task.get_logger().report_text(deploy_summary["reason"])
     task.close()
     raise SystemExit(0)
 
 model_id = promote_summary["champion_model_id"]
+forecast_horizon = int(params["horizon"])
 deployment = deploy_model(
     argparse.Namespace(
         model_id=model_id,
@@ -118,13 +125,14 @@ deployment = deploy_model(
         endpoint_version=str(params["endpoint_version"] or ""),
         preprocess=str(params["preprocess"]),
         engine=str(params["engine"]),
-        horizon=int(params["horizon"]),
+        horizon=forecast_horizon,
     )
 )
 
 deploy_summary = {
     **deployment,
     "promote_task_id": promote_task.id,
+    "forecast_horizon": forecast_horizon,
 }
 deploy_lineage = {
     "deploy_serving_task_id": task.id,
@@ -134,6 +142,7 @@ deploy_lineage = {
     "service_id": deployment["service_id"],
     "endpoint": deployment["endpoint"],
     "endpoint_version": deployment["endpoint_version"],
+    "forecast_horizon": forecast_horizon,
 }
 
 task.upload_artifact("deploy_serving_summary", deploy_summary)

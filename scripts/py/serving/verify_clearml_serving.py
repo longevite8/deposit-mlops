@@ -29,7 +29,7 @@ def read_url(url: str, payload: bytes | None = None) -> tuple[int, str]:
 
 
 def endpoint_url(args) -> str:
-    endpoint = endpoint_name(args.endpoint_prefix, args.endpoint)
+    endpoint = endpoint_name(args.endpoint_prefix, args.endpoint, horizon=args.horizon)
     base = args.base_url.rstrip("/")
     url = f"{base}/serve/{endpoint}"
     if args.version:
@@ -45,7 +45,7 @@ def run_check(args) -> dict[str, Any]:
         "base_url": args.base_url,
         "docs_url": docs_url,
         "endpoint_url": url,
-        "endpoint": endpoint_name(args.endpoint_prefix, args.endpoint),
+        "endpoint": endpoint_name(args.endpoint_prefix, args.endpoint, horizon=args.horizon),
         "endpoint_version": args.version,
     }
     try:

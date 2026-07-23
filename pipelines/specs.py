@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from types import ModuleType
 from typing import Any
 
@@ -144,6 +144,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
         parameter_override={
             "General/feature_task_id": "${feature.id}",
             "General/hpo_task_id": "${hpo.id}",
+            "General/horizon": config.FORECAST_HORIZON,
         },
     ),
     PipelineStepSpec(
@@ -153,6 +154,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
         parameter_override={
             "General/feature_task_id": "${feature.id}",
             "General/train_task_id": "${train.id}",
+            "General/eval_horizon": config.FORECAST_HORIZON,
         },
         monitor_metrics=(("MAPE", "mape"), ("R2", "r2")),
     ),
@@ -268,6 +270,60 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
 )
 
 
+def _with_horizon_branch(
+    spec: PipelineStepSpec,
+    *,
+    horizon: int,
+    branch_names: dict[str, str],
+) -> PipelineStepSpec:
+    name = branch_names.get(spec.name, spec.name)
+    parents = tuple(branch_names.get(parent, parent) for parent in spec.parents)
+    overrides = dict(spec.parameter_override)
+    for key, value in list(overrides.items()):
+        if isinstance(value, str):
+            for original, branched in branch_names.items():
+                value = value.replace(f"${{{original}.id}}", f"${{{branched}.id}}")
+            overrides[key] = value
+    if spec.name == "train":
+        overrides["General/horizon"] = horizon
+    if spec.name == "evaluate":
+        overrides["General/eval_horizon"] = horizon
+    if spec.name in {
+        "deploy_candidate_serving",
+        "verify_candidate_endpoint",
+        "deploy_serving",
+        "verify_endpoint",
+    }:
+        overrides["General/horizon"] = horizon
+    return replace(spec, name=name, parents=parents, parameter_override=overrides)
+
+
+def build_training_steps_for_horizons(
+    horizons: tuple[int, ...] | list[int] | None = None,
+) -> tuple[PipelineStepSpec, ...]:
+    selected_horizons = tuple(horizons or config.FORECAST_HORIZONS)
+    if len(selected_horizons) <= 1:
+        horizon = selected_horizons[0] if selected_horizons else config.FORECAST_HORIZON
+        if horizon == config.FORECAST_HORIZON:
+            return TRAINING_STEPS
+        return tuple(
+            _with_horizon_branch(spec, horizon=horizon, branch_names={})
+            for spec in TRAINING_STEPS
+        )
+
+    common_steps = TRAINING_STEPS[:5]
+    branch_steps = TRAINING_STEPS[5:]
+    expanded_steps: list[PipelineStepSpec] = list(common_steps)
+    for horizon in selected_horizons:
+        suffix = config.forecast_horizon_endpoint_suffix(horizon)
+        branch_names = {spec.name: f"{spec.name}_{suffix}" for spec in branch_steps}
+        expanded_steps.extend(
+            _with_horizon_branch(spec, horizon=horizon, branch_names=branch_names)
+            for spec in branch_steps
+        )
+    return tuple(expanded_steps)
+
+
 PRODUCTION_STEPS: tuple[PipelineStepSpec, ...] = (
     PipelineStepSpec(
         name="extract",
@@ -292,7 +348,10 @@ PRODUCTION_STEPS: tuple[PipelineStepSpec, ...] = (
         name="inference",
         template_id_name="TEMPLATE_INFERENCE_ID",
         parents=("feature",),
-        parameter_override={"General/feature_task_id": "${feature.id}"},
+        parameter_override={
+            "General/feature_task_id": "${feature.id}",
+            "General/horizon": config.FORECAST_HORIZON,
+        },
         cache_executed_step=False,
     ),
     PipelineStepSpec(

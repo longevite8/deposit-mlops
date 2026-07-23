@@ -13,8 +13,11 @@ from clearml import (
 from clearml.backend_api.session.client import APIClient
 
 from config import (
+    FORECAST_HORIZON,
+    FORECAST_HORIZON_METADATA_KEY,
     PROJECT_TEMPLATE,
     TEMPLATE_REGISTER_NAME,
+    forecast_horizon_tag,
 )
 
 from helpers import wait_for_artifact, wait_for_metadata  # THÊM: Import từ helper
@@ -99,6 +102,7 @@ feature_dataset_id = wait_for_metadata(
 train_params = train_task.get_parameters()
 
 hpo_task_id = train_params.get("General/hpo_task_id")
+horizon = int(train_params.get("General/horizon") or FORECAST_HORIZON)
 
 # =====================================================
 # Publish model
@@ -122,6 +126,10 @@ if published:
     registered_model.set_metadata(
         "feature_dataset_id",
         feature_dataset_id,
+    )
+    registered_model.set_metadata(
+        FORECAST_HORIZON_METADATA_KEY,
+        str(horizon),
     )
 
     # =====================================================
@@ -154,6 +162,9 @@ if published:
 
     if "candidate" not in new_tags:
         new_tags.append("candidate")
+    horizon_tag = forecast_horizon_tag(horizon)
+    if horizon_tag not in new_tags:
+        new_tags.append(horizon_tag)
 
     client.models.edit(
         model=registered_model.id,
@@ -167,6 +178,7 @@ if published:
         "model_id": registered_model.id,
         "train_task_id": train_task.id,
         "feature_dataset_id": feature_dataset_id,
+        "forecast_horizon": horizon,
         "mape": mape,
         "r2": r2,
     }
@@ -184,6 +196,7 @@ else:
         "model_id": None,
         "train_task_id": None,
         "feature_dataset_id": feature_dataset_id,
+        "forecast_horizon": horizon,
         "mape": evaluate_summary["mape"],
         "r2": evaluate_summary["r2"],
     }
@@ -199,6 +212,7 @@ register_lineage = {
     "hpo_task_id": hpo_task_id,
     "model_id": model_id,
     "feature_dataset_id": feature_dataset_id,
+    "forecast_horizon": horizon,
 }
 
 task.upload_artifact(

@@ -12,8 +12,10 @@ from clearml import (
 )
 
 from config import (
+    FORECAST_HORIZON,
     PROJECT_TEMPLATE,
     TEMPLATE_COMPARE_CHAMPION_NAME,
+    forecast_horizon_tag,
 )
 
 from helpers import wait_for_artifact
@@ -70,6 +72,11 @@ register_lineage = wait_for_artifact(
 )
 
 candidate_model_id = register_summary.get("model_id")
+forecast_horizon = int(
+    register_summary.get("forecast_horizon")
+    or register_lineage.get("forecast_horizon")
+    or FORECAST_HORIZON
+)
 
 compare_lineage = {
     "compare_task_id": task.id,
@@ -79,6 +86,7 @@ compare_lineage = {
     "hpo_task_id": register_lineage["hpo_task_id"],
     "feature_dataset_id": register_lineage["feature_dataset_id"],
     "candidate_model_id": candidate_model_id,
+    "forecast_horizon": forecast_horizon,
 }
 
 # =====================================================
@@ -91,6 +99,7 @@ if not register_summary.get("published", False):
         "candidate_win": False,
         "status": "FAIL",
         "reason": "Candidate not published",
+        "forecast_horizon": forecast_horizon,
     }
     task.upload_artifact("compare_summary", compare_summary)
     task.upload_artifact(
@@ -110,7 +119,7 @@ candidate_metrics = {"mape": register_summary["mape"], "r2": register_summary["r
 # =====================================================
 
 champion_models = Model.query_models(
-    tags=["champion"],
+    tags=["champion", forecast_horizon_tag(forecast_horizon)],
     only_published=True,
     max_results=1,
 )
@@ -124,8 +133,9 @@ if len(champion_models) == 0:
         "candidate_exists": True,
         "candidate_win": True,
         "status": "FIRST_CHAMPION",
-        "reason": "No champion",
+        "reason": f"No champion for horizon {forecast_horizon}",
         "candidate_model_id": candidate_model_id,
+        "forecast_horizon": forecast_horizon,
     }
 
     task.upload_artifact("compare_summary", compare_summary)
@@ -169,6 +179,7 @@ compare_summary = {
     "champion_model_id": champion_model_id,
     "candidate_metrics": candidate_metrics,
     "champion_metrics": champion_metrics,
+    "forecast_horizon": forecast_horizon,
     "status": "SUCCESS",
 }
 task.upload_artifact("compare_summary", compare_summary)

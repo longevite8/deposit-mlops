@@ -22,16 +22,27 @@ class ServingDeploymentTest(unittest.TestCase):
             "deposit_cashflow_candidate",
         )
 
+    def test_endpoint_name_appends_horizon_suffix_when_requested(self):
+        self.assertEqual(
+            endpoint_name("deposit/cashflow", "", horizon=7),
+            "deposit_cashflow_h7",
+        )
+        self.assertEqual(
+            endpoint_name("", "deposit/cashflow/candidate", horizon=14),
+            "deposit_cashflow_candidate_h14",
+        )
+
     def test_verify_endpoint_url_includes_version_when_present(self):
         args = argparse.Namespace(
             base_url="http://127.0.0.1:8082",
             endpoint_prefix="deposit/cashflow",
             endpoint="",
             version="production",
+            horizon=30,
         )
         self.assertEqual(
             endpoint_url(args),
-            "http://127.0.0.1:8082/serve/deposit_cashflow/production",
+            "http://127.0.0.1:8082/serve/deposit_cashflow_h30/production",
         )
 
     def test_normalize_history_frame_accepts_deposit_rows(self):

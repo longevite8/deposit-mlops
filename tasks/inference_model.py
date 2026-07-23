@@ -18,9 +18,11 @@ from clearml import (
 from pathlib import Path
 
 from config import (
+    FORECAST_HORIZON,
     FORECAST_UNIQUE_ID,
     PROJECT_TEMPLATE,
     TEMPLATE_INFERENCE_NAME,
+    forecast_horizon_tag,
 )
 
 from helpers import wait_for_artifact
@@ -41,6 +43,7 @@ task = Task.init(
 params = task.connect(
     {
         "feature_task_id": "",
+        "horizon": FORECAST_HORIZON,
     }
 )
 
@@ -141,13 +144,13 @@ task.get_logger().report_text(f"✅ Loaded {len(latest_df)} rows from feature da
 # =====================================================
 
 champion_models = Model.query_models(
-    tags=["champion"],
+    tags=["champion", forecast_horizon_tag(int(params["horizon"]))],
     only_published=True,
     max_results=1,
 )
 
 if len(champion_models) == 0:
-    raise ValueError("No champion model found.")
+    raise ValueError(f"No champion model found for horizon {params['horizon']}.")
 
 champion_model = champion_models[0]
 task.get_logger().report_text(f"✅ Loaded champion model: {champion_model.id}")
@@ -204,6 +207,7 @@ task.get_logger().report_text(
 # Upload artifact
 inference_lineage = {
     "model_id": champion_model.id,
+    "forecast_horizon": int(params["horizon"]),
     "feature_dataset_id": feature_dataset_id,
     "raw_dataset_id": champion_metadata.get("raw_dataset_id", {}).get("value", ""),
     "train_task_id": champion_metadata.get("train_task_id", {}).get("value", ""),

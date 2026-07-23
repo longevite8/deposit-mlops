@@ -140,9 +140,36 @@ EARLY_STOPPING_ROUNDS = 50
 VALIDATION_SPLIT = 0.2
 
 # Forecast model training (NeuralForecast)
+def parse_int_list(value: str, *, default: tuple[int, ...]) -> tuple[int, ...]:
+    values: list[int] = []
+    for item in str(value or "").split(","):
+        item = item.strip()
+        if not item:
+            continue
+        parsed = int(item)
+        if parsed <= 0:
+            raise ValueError(f"Expected positive integer in list, got {parsed}")
+        if parsed not in values:
+            values.append(parsed)
+    return tuple(values or default)
+
+
 FORECAST_UNIQUE_ID = os.getenv("FORECAST_UNIQUE_ID", "Deposit_Portfolio")
 FORECAST_HORIZON = int(os.getenv("FORECAST_HORIZON", "30"))
+FORECAST_HORIZONS = parse_int_list(
+    os.getenv("FORECAST_HORIZONS", "7,14,30"),
+    default=(7, 14, 30),
+)
 FORECAST_EVAL_HORIZON = int(os.getenv("FORECAST_EVAL_HORIZON", "30"))
+FORECAST_HORIZON_METADATA_KEY = "forecast_horizon"
+
+
+def forecast_horizon_tag(horizon: int | str) -> str:
+    return f"horizon:{int(horizon)}"
+
+
+def forecast_horizon_endpoint_suffix(horizon: int | str) -> str:
+    return f"h{int(horizon)}"
 FORECAST_INPUT_SIZE = int(os.getenv("FORECAST_INPUT_SIZE", "90"))
 FORECAST_LEARNING_RATE = float(os.getenv("FORECAST_LEARNING_RATE", "0.0005"))
 FORECAST_MAX_STEPS = int(os.getenv("FORECAST_MAX_STEPS", "100"))

@@ -19,18 +19,39 @@ class FakeScheduler:
     def __init__(self, **kwargs):
         self.init_kwargs = kwargs
         self.add_task_calls = []
-        self.started_remote_queue = None
         self.started_locally = False
+        self.execute_remote_calls = []
+        self._task = self
         FakeScheduler.instances.append(self)
 
     def add_task(self, **kwargs):
         self.add_task_calls.append(kwargs)
 
-    def start_remotely(self, queue):
-        self.started_remote_queue = queue
+    def execute_remotely(self, **kwargs):
+        self.execute_remote_calls.append(kwargs)
 
     def start(self):
         self.started_locally = True
+
+
+class FakeLocalTask:
+    @staticmethod
+    def running_locally():
+        return True
+
+    @staticmethod
+    def current_task():
+        return None
+
+
+class FakeRemoteTask:
+    @staticmethod
+    def running_locally():
+        return False
+
+    @staticmethod
+    def current_task():
+        return None
 
 
 class ProductionSchedulerTest(unittest.TestCase):
@@ -80,7 +101,7 @@ class ProductionSchedulerTest(unittest.TestCase):
             ],
         )
 
-    def test_start_scheduler_remote_uses_scheduler_queue(self):
+    def test_start_scheduler_remote_enqueues_scheduler_task_from_local_process(self):
         config = ProductionScheduleConfig(
             pipeline_task_id="production-task-id",
             scheduler_project="Deposit-CashFlow/Pipelines",
@@ -96,11 +117,36 @@ class ProductionSchedulerTest(unittest.TestCase):
         )
         scheduler = FakeScheduler()
 
-        mode = start_scheduler(scheduler, config)
+        mode = start_scheduler(scheduler, config, task_cls=FakeLocalTask)
 
         self.assertEqual(mode, "remote")
-        self.assertEqual(scheduler.started_remote_queue, "mco-services")
+        self.assertEqual(
+            scheduler.execute_remote_calls,
+            [{"queue_name": "mco-services", "exit_process": True}],
+        )
         self.assertFalse(scheduler.started_locally)
+
+    def test_start_scheduler_remote_controller_starts_loop_without_reenqueue(self):
+        config = ProductionScheduleConfig(
+            pipeline_task_id="production-task-id",
+            scheduler_project="Deposit-CashFlow/Pipelines",
+            scheduler_task_name="scheduler",
+            job_name="daily",
+            queue="mco-services",
+            target_project="Deposit-CashFlow/Pipelines",
+            sync_minutes=5.0,
+            utc_hour=19,
+            utc_minute=0,
+            start_remotely=True,
+            execute_immediately=False,
+        )
+        scheduler = FakeScheduler()
+
+        mode = start_scheduler(scheduler, config, task_cls=FakeRemoteTask)
+
+        self.assertEqual(mode, "remote")
+        self.assertTrue(scheduler.started_locally)
+        self.assertEqual(scheduler.execute_remote_calls, [])
 
     def test_start_scheduler_local_blocks_in_local_mode(self):
         config = ProductionScheduleConfig(
@@ -122,7 +168,7 @@ class ProductionSchedulerTest(unittest.TestCase):
 
         self.assertEqual(mode, "local")
         self.assertTrue(scheduler.started_locally)
-        self.assertIsNone(scheduler.started_remote_queue)
+        self.assertEqual(scheduler.execute_remote_calls, [])
 
     def test_config_requires_production_pipeline_task_id(self):
         args = argparse.Namespace(

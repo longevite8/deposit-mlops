@@ -29,7 +29,7 @@ Mặc định scheduler sẽ:
 - clone `PRODUCTION_PIPELINE_ID` và enqueue vào queue `mco-services`;
 - chạy mỗi ngày lúc `19:00 UTC`, tương ứng `02:00 Asia/Ho_Chi_Minh`;
 - bật `single_instance=True` để không tạo run mới nếu run trước vẫn đang chạy;
-- chạy scheduler controller remote trên queue `mco-services`.
+- enqueue scheduler controller remote trên queue `mco-services`.
 
 Các biến cấu hình chính:
 
@@ -52,3 +52,7 @@ python -m scripts.py.schedule_production_pipeline \
 
 Máy/agent chạy scheduler cần ClearML credentials và phải có agent đang listen
 queue `mco-services`.
+
+Nếu một lần đăng ký scheduler bị fail trước đó, archive/stop task scheduler cũ
+trên ClearML UI trước khi đăng ký lại để tránh nhiều scheduler controller cùng
+tên.

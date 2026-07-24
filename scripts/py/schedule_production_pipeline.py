@@ -156,11 +156,29 @@ def register_daily_schedule(config: ProductionScheduleConfig, scheduler_cls: Any
     return scheduler
 
 
-def start_scheduler(scheduler, config: ProductionScheduleConfig) -> str:
+def start_scheduler(
+    scheduler,
+    config: ProductionScheduleConfig,
+    task_cls: Any | None = None,
+) -> str:
     """Start the scheduler controller and return the selected mode."""
 
+    if task_cls is None:
+        from clearml import Task
+
+        task_cls = Task
+
     if config.start_remotely:
-        scheduler.start_remotely(queue=config.queue)
+        if task_cls.running_locally():
+            scheduler_task = getattr(scheduler, "_task", None) or task_cls.current_task()
+            if scheduler_task is None:
+                raise RuntimeError("Could not find ClearML scheduler task to enqueue.")
+            scheduler_task.execute_remotely(
+                queue_name=config.queue,
+                exit_process=True,
+            )
+            return "remote"
+        scheduler.start()
         return "remote"
     scheduler.start()
     return "local"

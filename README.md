@@ -83,6 +83,19 @@ Hệ thống MLOps toàn diện cho dự báo dòng tiền (Cashflow Forecasting
 
     **Lưu ý: bước auto retrain pipeline (nếu có) sẽ được clone từ training pipeline ở bước trên qua `TRAINING_PIPELINE_ID`.**
 
+7. **Tự động chạy Production Pipeline hằng ngày bằng ClearML Scheduler**:
+
+    Sau khi bước 6 chạy thành công, copy Task ID của Production Pipeline Controller
+    từ ClearML UI và cấu hình:
+
+    ```bash
+    export PRODUCTION_PIPELINE_ID="<production-pipeline-controller-task-id>"
+    python -m scripts.py.schedule_production_pipeline
+    ```
+
+    Mặc định lịch chạy là `19:00 UTC`, tương ứng `02:00 Asia/Ho_Chi_Minh`,
+    trên queue `mco-services`, với `single_instance=True`.
+
 ## 📚 Tài liệu chi tiết
 
 Vui lòng đọc tài liệu theo thứ tự dưới đây để hiểu rõ hệ thống:

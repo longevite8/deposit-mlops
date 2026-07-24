@@ -47,6 +47,49 @@ RUN_PIPELINE_CONTROLLER_LOCALLY = os.getenv(
 ).lower() in {"1", "true", "yes", "y"}
 
 # =====================================================
+# Production Pipeline Scheduler
+# =====================================================
+
+PRODUCTION_PIPELINE_ID = os.getenv("PRODUCTION_PIPELINE_ID", "")
+PRODUCTION_SCHEDULER_PROJECT = os.getenv(
+    "PRODUCTION_SCHEDULER_PROJECT",
+    PROJECT_PIPELINE,
+)
+PRODUCTION_SCHEDULER_TASK_NAME = os.getenv(
+    "PRODUCTION_SCHEDULER_TASK_NAME",
+    "Scheduled Production Pipeline Controller",
+)
+PRODUCTION_SCHEDULER_JOB_NAME = os.getenv(
+    "PRODUCTION_SCHEDULER_JOB_NAME",
+    "daily_production_pipeline",
+)
+PRODUCTION_SCHEDULER_QUEUE = os.getenv(
+    "PRODUCTION_SCHEDULER_QUEUE",
+    SERVICES_QUEUE,
+)
+PRODUCTION_SCHEDULER_TARGET_PROJECT = os.getenv(
+    "PRODUCTION_SCHEDULER_TARGET_PROJECT",
+    PROJECT_PIPELINE,
+)
+PRODUCTION_SCHEDULER_SYNC_MINUTES = float(
+    os.getenv("PRODUCTION_SCHEDULER_SYNC_MINUTES", "5")
+)
+PRODUCTION_SCHEDULER_START_REMOTELY = os.getenv(
+    "PRODUCTION_SCHEDULER_START_REMOTELY",
+    "true",
+).lower() in {"1", "true", "yes", "y"}
+PRODUCTION_SCHEDULER_EXECUTE_IMMEDIATELY = os.getenv(
+    "PRODUCTION_SCHEDULER_EXECUTE_IMMEDIATELY",
+    "false",
+).lower() in {"1", "true", "yes", "y"}
+PRODUCTION_SCHEDULER_DAILY_UTC_HOUR = int(
+    os.getenv("PRODUCTION_SCHEDULER_DAILY_UTC_HOUR", "19")
+)
+PRODUCTION_SCHEDULER_DAILY_UTC_MINUTE = int(
+    os.getenv("PRODUCTION_SCHEDULER_DAILY_UTC_MINUTE", "0")
+)
+
+# =====================================================
 # Source Database Configuration
 # =====================================================
 

@@ -21,6 +21,7 @@ class FakeScheduler:
         self.add_task_calls = []
         self.started_locally = False
         self.execute_remote_calls = []
+        self.serialized = False
         self._task = self
         FakeScheduler.instances.append(self)
 
@@ -29,6 +30,9 @@ class FakeScheduler:
 
     def execute_remotely(self, **kwargs):
         self.execute_remote_calls.append(kwargs)
+
+    def _serialize(self):
+        self.serialized = True
 
     def start(self):
         self.started_locally = True
@@ -124,6 +128,7 @@ class ProductionSchedulerTest(unittest.TestCase):
             scheduler.execute_remote_calls,
             [{"queue_name": "mco-services", "exit_process": True}],
         )
+        self.assertTrue(scheduler.serialized)
         self.assertFalse(scheduler.started_locally)
 
     def test_start_scheduler_remote_controller_starts_loop_without_reenqueue(self):

@@ -173,6 +173,7 @@ def start_scheduler(
             scheduler_task = getattr(scheduler, "_task", None) or task_cls.current_task()
             if scheduler_task is None:
                 raise RuntimeError("Could not find ClearML scheduler task to enqueue.")
+            scheduler._serialize()
             scheduler_task.execute_remotely(
                 queue_name=config.queue,
                 exit_process=True,

@@ -1,38 +1,85 @@
+"""
+Generic Hyperparameter Optimization Orchestrator.
+Hoạt động với bất kỳ model type nào thông qua Strategy pattern.
+"""
+
 import optuna
-from lightgbm import LGBMRegressor
-from sklearn.metrics import mean_absolute_percentage_error
+from typing import Optional, Any
+import pandas as pd
 
 
-def run_hpo_optimization(
-    X_train, y_train, X_valid, y_valid, n_trials, random_state, callbacks=None
-):
+def run_generic_hpo_optimization(
+    optimizer: Any,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    X_valid: pd.DataFrame,
+    y_valid: pd.Series,
+    n_trials: int = 50,
+    random_state: int = 42,
+    callbacks: Optional[list] = None,
+) -> optuna.Study:
     """
-    Thực hiện tối ưu hóa Hyperparameters bằng Optuna.
-    Chấp nhận danh sách callbacks để thực hiện các hành động bổ sung sau mỗi trial (như logging).
+    Thực hiện tối ưu hóa Hyperparameters bằng Optuna cho bất kỳ model type nào.
+
+    Hàm này generic và không phụ thuộc vào implementation chi tiết của từng model.
+    Nó chỉ yêu cầu:
+    1. Optimizer object có method: objective(trial) và setup_data()
+    2. Optuna framework để manage trials
+
+    Args:
+        optimizer: HyperparameterOptimizer instance (e.g., LGBMOptimizer, NBEATSxOptimizer)
+        X_train: Training features (DataFrame)
+        y_train: Training target (Series)
+        X_valid: Validation features (DataFrame)
+        y_valid: Validation target (Series)
+        n_trials: Số trials cần chạy (default: 50)
+        random_state: Random seed cho reproducibility
+        callbacks: Optional list of callbacks để execute sau mỗi trial
+
+    Returns:
+        optuna.Study object chứa kết quả HPO
+
+    Example:
+        >>> from business.models import get_optimizer_class, LGBMConfig
+        >>> optimizer_class = get_optimizer_class("lightgbm")
+        >>> optimizer = optimizer_class(config=LGBMConfig())
+        >>> study = run_generic_hpo_optimization(
+        ...     optimizer=optimizer,
+        ...     X_train=X_train,
+        ...     y_train=y_train,
+        ...     X_valid=X_valid,
+        ...     y_valid=y_valid,
+        ...     n_trials=50,
+        ... )
     """
 
-    def objective(trial: optuna.Trial) -> float:
-        model_params = {
-            "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.1, log=True),
-            "num_leaves": trial.suggest_int("num_leaves", 15, 100),
-            "n_estimators": trial.suggest_int("n_estimators", 100, 1000),
-            "random_state": random_state,
-        }
+    # =====================================================
+    # Setup: Prepare data cho optimizer
+    # =====================================================
 
-        model = LGBMRegressor(**model_params)
-        model.fit(X_train, y_train)
+    optimizer.setup_data(X_train, y_train, X_valid, y_valid)
 
-        y_pred = model.predict(X_valid)
-        mape = mean_absolute_percentage_error(y_valid, y_pred)
-
-        return mape
+    # =====================================================
+    # Create Study: Initialize Optuna study
+    # =====================================================
 
     study = optuna.create_study(
-        direction="minimize",
+        direction="minimize",  # Minimize MAPE/loss
         sampler=optuna.samplers.TPESampler(seed=random_state),
     )
 
-    # Truyền callbacks vào đây
-    study.optimize(objective, n_trials=n_trials, callbacks=callbacks)
+    # =====================================================
+    # Optimize: Run trials
+    # =====================================================
+
+    study.optimize(
+        objective=optimizer.objective,
+        n_trials=n_trials,
+        callbacks=callbacks,
+    )
+
+    # =====================================================
+    # Return Study
+    # =====================================================
 
     return study

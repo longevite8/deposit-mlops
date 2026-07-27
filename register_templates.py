@@ -20,6 +20,13 @@ from config import (
     TEMPLATE_ALERTING_NAME,
     TEMPLATE_AUTO_RETRAINING_NAME,
     TEMPLATE_EXPLAIN_NAME,
+    # =====================================================
+    # Model Selection Templates (NEW)
+    # =====================================================
+    TEMPLATE_HPO_LIGHTGBM_NAME,
+    TEMPLATE_HPO_NBEATSX_NAME,
+    TEMPLATE_HPO_NHITS_NAME,
+    TEMPLATE_COMPARE_HPO_NAME,
     PROJECT_TEMPLATE,
 )
 
@@ -134,6 +141,33 @@ templates = [
         "tasks/explain_model.py",
         "TEMPLATE_EXPLAIN_ID",
     ),
+    # =====================================================
+    # Model Selection Templates (NEW)
+    # =====================================================
+    (
+        TEMPLATE_HPO_LIGHTGBM_NAME,
+        Task.TaskTypes.optimizer,
+        "tasks/hpo_lightgbm_model.py",
+        "TEMPLATE_HPO_LIGHTGBM_ID",
+    ),
+    (
+        TEMPLATE_HPO_NBEATSX_NAME,
+        Task.TaskTypes.optimizer,
+        "tasks/hpo_nbeatsx_model.py",
+        "TEMPLATE_HPO_NBEATSX_ID",
+    ),
+    (
+        TEMPLATE_HPO_NHITS_NAME,
+        Task.TaskTypes.optimizer,
+        "tasks/hpo_nhits_model.py",
+        "TEMPLATE_HPO_NHITS_ID",
+    ),
+    (
+        TEMPLATE_COMPARE_HPO_NAME,
+        Task.TaskTypes.qc,
+        "tasks/compare_hpo_results.py",
+        "TEMPLATE_COMPARE_HPO_ID",
+    ),
 ]
 
 current_commit = check_output(["git", "rev-parse", "HEAD"]).decode().strip()
@@ -172,3 +206,9 @@ for var_name, new_id in new_ids.items():
 
 config_path.write_text(config_content, encoding="utf-8")
 print(f"\n🚀 Successfully updated {len(new_ids)} IDs in config.py")
+print("\n" + "=" * 70)
+print("📋 New Template IDs registered:")
+print("=" * 70)
+for var_name, task_id in new_ids.items():
+    print(f"   {var_name} = {task_id}")
+print("=" * 70)

@@ -117,10 +117,7 @@ class PipelineSpecsTest(unittest.TestCase):
         self.assertEqual(candidate_verify_step.execution_queue(fake_config()), "services")
         self.assertEqual(deploy_step.execution_queue(fake_config()), "services")
         self.assertEqual(verify_step.execution_queue(fake_config()), "services")
-        self.assertFalse(candidate_deploy_step.cache_executed_step)
-        self.assertFalse(candidate_verify_step.cache_executed_step)
-        self.assertFalse(deploy_step.cache_executed_step)
-        self.assertFalse(verify_step.cache_executed_step)
+        self.assertTrue(all(spec.cache_executed_step for spec in TRAINING_STEPS))
 
     def test_production_specs_define_expected_uncached_runtime_steps(self):
         self.assertEqual(
@@ -189,7 +186,7 @@ class PipelineSpecsTest(unittest.TestCase):
         self.assertEqual(len(pipeline.steps), 2)
         self.assertEqual(pipeline.steps[0]["base_task_id"], "extract-template")
         self.assertEqual(pipeline.steps[0]["execution_queue"], "cpu")
-        self.assertFalse(pipeline.steps[0]["cache_executed_step"])
+        self.assertTrue(pipeline.steps[0]["cache_executed_step"])
         self.assertEqual(pipeline.steps[1]["parents"], ["extract"])
         self.assertEqual(
             pipeline.steps[1]["parameter_override"],

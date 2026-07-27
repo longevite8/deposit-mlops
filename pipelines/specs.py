@@ -110,7 +110,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
     PipelineStepSpec(
         name="extract",
         template_id_name="TEMPLATE_EXTRACT_ID",
-        cache_executed_step=False,
+        cache_executed_step=True,
     ),
     PipelineStepSpec(
         name="feature",
@@ -129,7 +129,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
         template_id_name="TEMPLATE_DRIFT_ID",
         parents=("validate",),
         parameter_override={"General/feature_task_id": "${feature.id}"},
-        cache_executed_step=False,
+        cache_executed_step=True,
     ),
     PipelineStepSpec(
         name="hpo",
@@ -188,7 +188,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
             "General/alias": config.CLEARML_CANDIDATE_SERVING_ALIAS,
             "General/horizon": config.FORECAST_HORIZON,
         },
-        cache_executed_step=False,
+        cache_executed_step=True,
         execution_queue_name="SERVICES_QUEUE",
     ),
     PipelineStepSpec(
@@ -203,7 +203,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
             "General/version": config.CLEARML_CANDIDATE_SERVING_ENDPOINT_VERSION,
             "General/horizon": config.FORECAST_HORIZON,
         },
-        cache_executed_step=False,
+        cache_executed_step=True,
         execution_queue_name="SERVICES_QUEUE",
     ),
     PipelineStepSpec(
@@ -249,7 +249,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
             "General/alias": config.CLEARML_SERVING_ALIAS,
             "General/horizon": config.FORECAST_HORIZON,
         },
-        cache_executed_step=False,
+        cache_executed_step=True,
         execution_queue_name="SERVICES_QUEUE",
     ),
     PipelineStepSpec(
@@ -264,7 +264,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
             "General/version": config.CLEARML_SERVING_ENDPOINT_VERSION,
             "General/horizon": config.FORECAST_HORIZON,
         },
-        cache_executed_step=False,
+        cache_executed_step=True,
         execution_queue_name="SERVICES_QUEUE",
     ),
 )

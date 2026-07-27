@@ -17,4 +17,10 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "scikit-learn>=1.7.2",
     "shap>=0.49.1",
+    # =====================================================
+    # Neural Time Series Models
+    # =====================================================
+    "torch>=2.0.0",
+    "pytorch-lightning>=2.0.0",
+    "darts>=0.28.0",
 ]

@@ -2,11 +2,11 @@
 #    uv pip compile pyproject.toml -o requirements.txt
 aiohappyeyeballs==2.7.1
     # via aiohttp
-aiohttp==3.14.1
+aiohttp==3.14.2
     # via fsspec
 aiosignal==1.4.0
     # via aiohttp
-alembic==1.18.4
+alembic==1.18.5
     # via optuna
 async-timeout==5.0.1
     # via aiohttp
@@ -16,17 +16,17 @@ attrs==26.1.0
     #   clearml
     #   jsonschema
     #   referencing
-certifi==2026.5.20
+certifi==2026.7.22
     # via requests
-charset-normalizer==3.4.7
+charset-normalizer==3.4.9
     # via requests
-clearml==2.1.8
+clearml==2.1.10
     # via cashflow-clearml (pyproject.toml)
 clearml-agent==3.0.3
     # via cashflow-clearml (pyproject.toml)
 cloudpickle==3.1.2
     # via shap
-colorlog==6.10.1
+colorlog==6.11.0
     # via optuna
 contourpy==1.3.2
     # via matplotlib
@@ -34,19 +34,19 @@ cramjam==2.11.0
     # via fastparquet
 cuda-bindings==13.3.1
     # via torch
-cuda-pathfinder==1.5.6
+cuda-pathfinder==1.6.0
     # via cuda-bindings
 cuda-toolkit==13.0.3.0
     # via torch
 cycler==0.12.1
     # via matplotlib
-darts==0.46.0
+darts==0.46.1
     # via cashflow-clearml (pyproject.toml)
 distlib==0.4.3
     # via virtualenv
 fastparquet==2026.5.0
     # via cashflow-clearml (pyproject.toml)
-filelock==3.29.4
+filelock==3.32.0
     # via
     #   torch
     #   virtualenv
@@ -63,9 +63,9 @@ fsspec==2026.6.0
     #   torch
 furl==2.1.4
     # via clearml
-greenlet==3.5.1
+greenlet==3.5.3
     # via sqlalchemy
-holidays==0.100
+holidays==0.101
     # via darts
 idna==3.18
     # via
@@ -85,14 +85,16 @@ jsonschema-specifications==2025.9.1
     # via jsonschema
 kiwisolver==1.5.0
     # via matplotlib
-lightgbm==4.6.0
+lightgbm==4.7.0
     # via cashflow-clearml (pyproject.toml)
 lightning-utilities==0.15.3
     # via
     #   pytorch-lightning
     #   torchmetrics
-llvmlite==0.47.0
-    # via numba
+llvmlite==0.48.0
+    # via
+    #   darts
+    #   numba
 mako==1.3.12
     # via alembic
 markupsafe==3.0.3
@@ -111,13 +113,16 @@ multidict==6.7.1
     #   aiohttp
     #   yarl
 narwhals==2.24.0
-    # via darts
+    # via
+    #   darts
+    #   lightgbm
 networkx==3.4.2
     # via torch
 nfoursid==1.0.2
     # via darts
-numba==0.65.1
+numba==0.66.0
     # via
+    #   darts
     #   pyod
     #   shap
 numpy==2.2.6
@@ -210,11 +215,11 @@ pathlib2==2.3.7.post1
     # via clearml
 patsy==1.0.2
     # via statsmodels
-pillow==12.2.0
+pillow==12.3.0
     # via
     #   clearml
     #   matplotlib
-platformdirs==4.10.0
+platformdirs==4.11.0
     # via virtualenv
 propcache==0.5.2
     # via
@@ -224,11 +229,11 @@ psutil==7.2.2
     # via
     #   clearml
     #   clearml-agent
-pyarrow==24.0.0
+pyarrow==25.0.0
     # via cashflow-clearml (pyproject.toml)
 pyjwt==2.13.0
     # via clearml
-pyod==3.6.1
+pyod==3.6.2
     # via darts
 pyparsing==3.3.2
     # via
@@ -296,7 +301,7 @@ six==1.17.0
     #   python-dateutil
 slicer==0.0.8
     # via shap
-sqlalchemy==2.0.50
+sqlalchemy==2.0.51
     # via
     #   alembic
     #   optuna
@@ -315,7 +320,7 @@ torch==2.13.0
     #   torchmetrics
 torchmetrics==1.9.0
     # via pytorch-lightning
-tqdm==4.68.2
+tqdm==4.69.0
     # via
     #   darts
     #   optuna
@@ -323,7 +328,7 @@ tqdm==4.68.2
     #   shap
 triton==3.7.1
     # via torch
-typing-extensions==4.15.0
+typing-extensions==4.16.0
     # via
     #   aiohttp
     #   aiosignal
@@ -338,7 +343,7 @@ typing-extensions==4.15.0
     #   sqlalchemy
     #   torch
     #   virtualenv
-tzdata==2026.2
+tzdata==2026.3
     # via pandas
 urllib3==2.7.0
     # via
@@ -349,5 +354,5 @@ virtualenv==20.39.1
     # via clearml-agent
 xarray==2025.6.1
     # via darts
-yarl==1.24.2
+yarl==1.24.5
     # via aiohttp

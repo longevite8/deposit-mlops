@@ -4,6 +4,7 @@ All constants should be defined here — never hardcode values in task files.
 """
 
 import os
+
 from dotenv import load_dotenv
 
 # =====================================================
@@ -16,7 +17,7 @@ load_dotenv()
 # Project & Environment
 # =====================================================
 
-PROJECT_PARENT = "Deposit-CashFlow"
+PROJECT_PARENT = "Recovery-CashFlow"
 PROJECT_TEMPLATE = f"{PROJECT_PARENT}/Templates"
 PROJECT_PIPELINE = f"{PROJECT_PARENT}/Pipelines"
 PROJECT_DATASET = f"{PROJECT_PARENT}/Datasets"
@@ -219,6 +220,109 @@ TEMPLATE_AUTO_RETRAINING_ID = "d83bb13dd70542268b47e2748c3fb6fb"
 TEMPLATE_EXPLAIN_ID = "ed552b304e14400785da48c0fa0450b5"
 
 TRAINING_PIPELINE_ID = "c1d61d3965f942c6a9fc7736eb67c870"
+
+
+# =====================================================
+# Model Categories
+# =====================================================
+
+TREE_MODELS = ["lightgbm"]
+NEURAL_MODELS = ["nbeatsx", "nhits"]
+SUPPORTED_MODELS = TREE_MODELS + NEURAL_MODELS
+
+# =====================================================
+# HPO Pruner Configuration (Dynamic based on SUPPORTED_MODELS)
+# =====================================================
+
+HPO_USE_HYPERBAND_BY_MODEL = {
+    model: model in NEURAL_MODELS  # True for neural models, False for tree-based
+    for model in SUPPORTED_MODELS
+}
+
+HYPERBAND_R = 9
+HYPERBAND_ETA = 3
+HYPERBAND_MIN_RESOURCE = 1
+HYPERBAND_MAX_RESOURCE = 100
+
+# =====================================================
+# LightGBM Hyperparameter Ranges (HPO Search Space)
+# =====================================================
+
+LGBM_LEARNING_RATE_MIN = 0.01
+LGBM_LEARNING_RATE_MAX = 0.1
+LGBM_NUM_LEAVES_MIN = 15
+LGBM_NUM_LEAVES_MAX = 100
+LGBM_N_ESTIMATORS_MIN = 100
+LGBM_N_ESTIMATORS_MAX = 1000
+LGBM_MAX_DEPTH_MIN = 5
+LGBM_MAX_DEPTH_MAX = 15
+LGBM_EARLY_STOPPING_ROUNDS = 50
+
+# =====================================================
+# NBEATSx Configuration (Neural Time Series)
+# =====================================================
+
+NBEATSX_INPUT_SIZE = 8  # Temporal window/lookback period
+NBEATSX_FORECAST_HORIZON = 1  # Steps ahead to predict
+NBEATSX_BATCH_SIZE = 32
+NBEATSX_EPOCHS = 100
+NBEATSX_LEARNING_RATE = 0.001
+NBEATSX_EARLY_STOPPING_PATIENCE = 10
+
+# NBEATSx HPO Search Space
+NBEATSX_STACK_SIZES_MIN = 4
+NBEATSX_STACK_SIZES_MAX = 16
+NBEATSX_HIDDEN_SIZE_MIN = 32
+NBEATSX_HIDDEN_SIZE_MAX = 256
+NBEATSX_NUM_STACKS = 2
+NBEATSX_NUM_LAYERS_MIN = 2
+NBEATSX_NUM_LAYERS_MAX = 5
+
+# =====================================================
+# NHITS Configuration (Neural Hierarchical Time Series)
+# =====================================================
+
+NHITS_INPUT_SIZE = 8
+NHITS_FORECAST_HORIZON = 1
+NHITS_BATCH_SIZE = 32
+NHITS_EPOCHS = 100
+NHITS_LEARNING_RATE = 0.001
+NHITS_EARLY_STOPPING_PATIENCE = 10
+
+# NHITS HPO Search Space
+NHITS_NUM_STACKS_MIN = 2
+NHITS_NUM_STACKS_MAX = 5
+NHITS_NUM_BLOCKS_MIN = 1
+NHITS_NUM_BLOCKS_MAX = 3
+NHITS_NUM_LAYERS_MIN = 2
+NHITS_NUM_LAYERS_MAX = 5
+NHITS_LAYER_WIDTH_MIN = 64
+NHITS_LAYER_WIDTH_MAX = 256
+
+# =====================================================
+# Normalization (cho Neural Models)
+# =====================================================
+
+NORMALIZATION_METHOD = "standard"  # "standard", "minmax", "robust"
+
+# =====================================================
+# Template Task Names (Model Selection Pipeline)
+# =====================================================
+
+TEMPLATE_HPO_LIGHTGBM_NAME = "HPO LightGBM"
+TEMPLATE_HPO_NBEATSX_NAME = "HPO NBEATSx"
+TEMPLATE_HPO_NHITS_NAME = "HPO NHITS"
+TEMPLATE_COMPARE_HPO_NAME = "Compare HPO Results"
+
+# =====================================================
+# Template Task IDs (Model Selection) - Populate after register_templates.py
+# =====================================================
+
+TEMPLATE_HPO_LIGHTGBM_ID = ""
+TEMPLATE_HPO_NBEATSX_ID = ""
+TEMPLATE_HPO_NHITS_ID = ""
+TEMPLATE_COMPARE_HPO_ID = ""
+
 # =====================================================
 # Utility Functions
 # =====================================================

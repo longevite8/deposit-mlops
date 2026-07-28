@@ -42,7 +42,8 @@ from config import (
 from helpers import wait_for_artifact
 
 
-CACHE_EXPERIMENT_TRACE = "scenario_3_retry_no_template_refresh"
+CACHE_EXPERIMENT_TRACE = "scenario_4_controlled_train_failure"
+CACHE_EXPERIMENT_FORCE_FAILURE = True
 
 
 def truthy(value) -> bool:
@@ -131,6 +132,9 @@ task.get_logger().report_text(
     f"input_size={forecast_config.input_size}, hist_exog={hist_exog}."
 )
 task.get_logger().report_text(f"Cache experiment trace: {CACHE_EXPERIMENT_TRACE}")
+if CACHE_EXPERIMENT_FORCE_FAILURE:
+    task.get_logger().report_text("Controlled cache experiment train failure requested.")
+    raise RuntimeError("Controlled cache experiment train failure.")
 
 nf, cv_df, metrics = train_forecast_model(
     forecast_train_df,

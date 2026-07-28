@@ -42,7 +42,7 @@ from config import (
 from helpers import wait_for_artifact
 
 
-CACHE_EXPERIMENT_TRACE = "scenario_3_no_template_reregister_marker"
+CACHE_EXPERIMENT_TRACE = "scenario_2_retry_train_only_template_refresh"
 
 
 def truthy(value) -> bool:

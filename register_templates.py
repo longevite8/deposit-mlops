@@ -1,33 +1,35 @@
 import os
 import re
 from pathlib import Path
-from dotenv import load_dotenv
-from clearml import Task
 from subprocess import check_output
+
+from clearml import Task
+from dotenv import load_dotenv
+
 from config import (
-    TEMPLATE_EXTRACT_NAME,
-    TEMPLATE_FEATURE_NAME,
-    TEMPLATE_VALIDATE_NAME,
-    TEMPLATE_DRIFT_NAME,
-    TEMPLATE_HPO_NAME,
-    TEMPLATE_TRAIN_NAME,
-    TEMPLATE_EVALUATE_NAME,
-    TEMPLATE_REGISTER_NAME,
-    TEMPLATE_COMPARE_CHAMPION_NAME,
-    TEMPLATE_PROMOTE_CHAMPION_NAME,
-    TEMPLATE_INFERENCE_NAME,
-    TEMPLATE_MONITORING_NAME,
+    PROJECT_TEMPLATE,
     TEMPLATE_ALERTING_NAME,
     TEMPLATE_AUTO_RETRAINING_NAME,
+    TEMPLATE_COMPARE_CHAMPION_NAME,
+    TEMPLATE_COMPARE_HPO_NAME,
+    TEMPLATE_DRIFT_NAME,
+    TEMPLATE_EVALUATE_NAME,
     TEMPLATE_EXPLAIN_NAME,
+    TEMPLATE_EXTRACT_NAME,
+    TEMPLATE_FEATURE_NAME,
     # =====================================================
     # Model Selection Templates (NEW)
     # =====================================================
     TEMPLATE_HPO_LIGHTGBM_NAME,
+    TEMPLATE_HPO_NAME,
     TEMPLATE_HPO_NBEATSX_NAME,
     TEMPLATE_HPO_NHITS_NAME,
-    TEMPLATE_COMPARE_HPO_NAME,
-    PROJECT_TEMPLATE,
+    TEMPLATE_INFERENCE_NAME,
+    TEMPLATE_MONITORING_NAME,
+    TEMPLATE_PROMOTE_CHAMPION_NAME,
+    TEMPLATE_REGISTER_NAME,
+    TEMPLATE_TRAIN_NAME,
+    TEMPLATE_VALIDATE_NAME,
 )
 
 # =====================================================
@@ -170,7 +172,19 @@ templates = [
     ),
 ]
 
+# Tự động lấy branch hiện tại
+try:
+    current_branch = (
+        check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"]).decode().strip()
+    )
+except Exception:
+    current_branch = "main"
+
 current_commit = check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+
+print(
+    f"📍 Registering templates for branch: {current_branch} (commit: {current_commit})"
+)
 
 # Dictionary để lưu ID mới nhằm cập nhật vào config.py
 new_ids = {}
@@ -181,7 +195,7 @@ for name, task_type, script, config_var in templates:
         task_name=name,
         task_type=task_type,
         repo=GIT_REPO,
-        branch="main",
+        branch=current_branch,  # Sử dụng branch hiện tại thay vì hardcode "main"
         script=script,
         working_directory=".",
     )

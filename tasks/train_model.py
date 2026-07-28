@@ -42,6 +42,9 @@ from config import (
 from helpers import wait_for_artifact
 
 
+PINNED_CACHE_EXPERIMENT_TRACE = "scenario_b_train_only_change"
+
+
 def truthy(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -126,6 +129,9 @@ task.get_logger().report_text(
     "Training NeuralForecast model with "
     f"{len(forecast_train_df)} rows, horizon={forecast_config.horizon}, "
     f"input_size={forecast_config.input_size}, hist_exog={hist_exog}."
+)
+task.get_logger().report_text(
+    f"Pinned cache experiment trace: {PINNED_CACHE_EXPERIMENT_TRACE}"
 )
 
 nf, cv_df, metrics = train_forecast_model(

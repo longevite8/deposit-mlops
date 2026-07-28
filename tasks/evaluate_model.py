@@ -1,14 +1,14 @@
+from pathlib import Path
+
 import joblib
 import pandas as pd
-
 from clearml import (
     Dataset,
     InputModel,
     Task,
 )
-from pathlib import Path
 
-
+from business.evaluate import calculate_evaluation_metrics, check_quality_gate
 from config import (
     FEATURE_COLUMNS,
     MAPE_THRESHOLD,
@@ -17,9 +17,7 @@ from config import (
     TARGET_COLUMN,
     TEMPLATE_EVALUATE_NAME,
 )
-
 from helpers import wait_for_artifact
-from business.evaluate import calculate_evaluation_metrics, check_quality_gate
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -81,8 +79,14 @@ y_true = test_df[TARGET_COLUMN]
 
 train_task = Task.get_task(task_id=params["train_task_id"])
 
-model_id = train_task.artifacts["model_id"].get()
-
+# ✅ Dùng wait_for_artifact để đảm bảo model_id đã được upload hoàn tất
+model_id = wait_for_artifact(
+    train_task,
+    "model_id",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
 
 input_model = InputModel(model_id=model_id)
 

@@ -3,6 +3,7 @@ Compare HPO Results - So sánh kết quả HPO từ 3 models, chọn model tốt
 """
 
 from clearml import Task
+
 from helpers import wait_for_artifact
 
 task = Task.init(
@@ -27,26 +28,33 @@ params = task.connect(
 # Template creation mode
 # =====================================================
 
-if (
-    not params["hpo_lightgbm_task_id"]
-    or not params["hpo_nbeatsx_task_id"]
-    or not params["hpo_nhits_task_id"]
-):
+if not params["hpo_lightgbm_task_id"]:
     task.get_logger().report_text("Template creation mode.")
     task.close()
     raise SystemExit(0)
 
 # =====================================================
-# Load Results từ 3 HPO Tasks
+# Load Results từ HPO Tasks (support both single & multi-model)
 # =====================================================
 
-task.get_logger().report_text("📍 Loading HPO results from all models...")
+task.get_logger().report_text("📍 Loading HPO results from available models...")
 
-hpo_tasks = {
-    "lightgbm": Task.get_task(task_id=params["hpo_lightgbm_task_id"]),
-    "nbeatsx": Task.get_task(task_id=params["hpo_nbeatsx_task_id"]),
-    "nhits": Task.get_task(task_id=params["hpo_nhits_task_id"]),
-}
+hpo_tasks = {}
+
+# Always require lightgbm (primary model)
+if params["hpo_lightgbm_task_id"]:
+    hpo_tasks["lightgbm"] = Task.get_task(task_id=params["hpo_lightgbm_task_id"])
+
+# Optional: nbeatsx & nhits (if provided)
+if params.get("hpo_nbeatsx_task_id"):
+    hpo_tasks["nbeatsx"] = Task.get_task(task_id=params["hpo_nbeatsx_task_id"])
+
+if params.get("hpo_nhits_task_id"):
+    hpo_tasks["nhits"] = Task.get_task(task_id=params["hpo_nhits_task_id"])
+
+task.get_logger().report_text(
+    f"📍 Comparing {len(hpo_tasks)} model(s): {list(hpo_tasks.keys())}"
+)
 
 hpo_results = {}
 
@@ -80,7 +88,7 @@ for model_type, hpo_task in hpo_tasks.items():
 
     except Exception as e:
         task.get_logger().report_text(
-            f"❌ {model_type.upper()}: Failed to load - {str(e)}"
+            f"❌ {model_type.upper()}: Failed to load - {e!s}"
         )
         hpo_results[model_type] = {
             "best_score": float("inf"),

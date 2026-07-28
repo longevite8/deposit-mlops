@@ -42,8 +42,8 @@ from config import (
 from helpers import wait_for_artifact
 
 
-CACHE_EXPERIMENT_TRACE = "scenario_4_controlled_train_failure"
-CACHE_EXPERIMENT_FORCE_FAILURE = True
+CACHE_EXPERIMENT_TRACE = "scenario_4_fixed_train_recovery"
+CACHE_EXPERIMENT_FORCE_FAILURE = False
 
 
 def truthy(value) -> bool:

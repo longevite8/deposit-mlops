@@ -42,7 +42,8 @@ from config import (
 from helpers import wait_for_artifact
 
 
-PINNED_CACHE_EXPERIMENT_TRACE = "scenario_c_no_template_refresh"
+PINNED_CACHE_EXPERIMENT_TRACE = "scenario_d_controlled_failure"
+PINNED_CACHE_EXPERIMENT_FORCE_FAILURE = True
 
 
 def truthy(value) -> bool:
@@ -133,6 +134,8 @@ task.get_logger().report_text(
 task.get_logger().report_text(
     f"Pinned cache experiment trace: {PINNED_CACHE_EXPERIMENT_TRACE}"
 )
+if PINNED_CACHE_EXPERIMENT_FORCE_FAILURE:
+    raise RuntimeError("Pinned cache experiment controlled train failure.")
 
 nf, cv_df, metrics = train_forecast_model(
     forecast_train_df,

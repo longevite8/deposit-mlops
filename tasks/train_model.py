@@ -41,11 +41,6 @@ from config import (
 )
 from helpers import wait_for_artifact
 
-
-PINNED_CACHE_EXPERIMENT_TRACE = "scenario_d_fixed_recovery"
-PINNED_CACHE_EXPERIMENT_FORCE_FAILURE = False
-
-
 def truthy(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -131,11 +126,6 @@ task.get_logger().report_text(
     f"{len(forecast_train_df)} rows, horizon={forecast_config.horizon}, "
     f"input_size={forecast_config.input_size}, hist_exog={hist_exog}."
 )
-task.get_logger().report_text(
-    f"Pinned cache experiment trace: {PINNED_CACHE_EXPERIMENT_TRACE}"
-)
-if PINNED_CACHE_EXPERIMENT_FORCE_FAILURE:
-    raise RuntimeError("Pinned cache experiment controlled train failure.")
 
 nf, cv_df, metrics = train_forecast_model(
     forecast_train_df,

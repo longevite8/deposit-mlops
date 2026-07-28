@@ -342,12 +342,10 @@ output_model = OutputModel(
 
 output_model.update_weights(weights_filename="model.pkl")
 
-# ✅ UPLOAD model_id NGAY LẬP TỨC sau khi register
-# Điều này giúp bước Evaluate nhận được ID sớm nhất có thể
-task.upload_artifact(
-    "model_id",
-    output_model.id,
-)
+# ✅ UPLOAD model_id artifact explicitly
+# This is what the evaluate task will look for
+task.get_logger().report_text(f"📍 Uploading model_id artifact: {output_model.id}")
+task.upload_artifact("model_id", output_model.id)
 
 output_model.set_metadata(
     "feature_dataset_id",

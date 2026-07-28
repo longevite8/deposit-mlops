@@ -78,15 +78,27 @@ y_true = test_df[TARGET_COLUMN]
 
 
 train_task = Task.get_task(task_id=params["train_task_id"])
+task.get_logger().report_text(
+    f"📍 Evaluating model from Train Task ID: {params['train_task_id']}"
+)
 
 # ✅ Dùng wait_for_artifact để đảm bảo model_id đã được upload hoàn tất
-model_id = wait_for_artifact(
-    train_task,
-    "model_id",
-    max_retries=10,
-    wait_interval=2.0,
-    logger_obj=task,
-)
+try:
+    model_id = wait_for_artifact(
+        train_task,
+        "model_id",
+        max_retries=15,  # Tăng số lần thử
+        wait_interval=3.0,
+        logger_obj=task,
+    )
+except Exception as e:
+    # Log chi tiết các artifacts hiện có để debug
+    available_artifacts = list(train_task.artifacts.keys())
+    task.get_logger().report_text(f"❌ Error getting model_id: {e!s}")
+    task.get_logger().report_text(
+        f"📍 Available artifacts in train task: {available_artifacts}"
+    )
+    raise e
 
 input_model = InputModel(model_id=model_id)
 

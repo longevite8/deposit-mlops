@@ -42,7 +42,7 @@ from config import (
 from helpers import wait_for_artifact
 
 
-PINNED_CACHE_EXPERIMENT_TRACE = "scenario_b_train_only_change"
+PINNED_CACHE_EXPERIMENT_TRACE = "scenario_c_no_template_refresh"
 
 
 def truthy(value) -> bool:

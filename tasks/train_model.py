@@ -42,10 +42,6 @@ from config import (
 from helpers import wait_for_artifact
 
 
-CACHE_EXPERIMENT_TRACE = "scenario_4_fixed_train_recovery"
-CACHE_EXPERIMENT_FORCE_FAILURE = False
-
-
 def truthy(value) -> bool:
     if isinstance(value, bool):
         return value
@@ -131,10 +127,6 @@ task.get_logger().report_text(
     f"{len(forecast_train_df)} rows, horizon={forecast_config.horizon}, "
     f"input_size={forecast_config.input_size}, hist_exog={hist_exog}."
 )
-task.get_logger().report_text(f"Cache experiment trace: {CACHE_EXPERIMENT_TRACE}")
-if CACHE_EXPERIMENT_FORCE_FAILURE:
-    task.get_logger().report_text("Controlled cache experiment train failure requested.")
-    raise RuntimeError("Controlled cache experiment train failure.")
 
 nf, cv_df, metrics = train_forecast_model(
     forecast_train_df,

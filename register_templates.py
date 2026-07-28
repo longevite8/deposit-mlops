@@ -346,11 +346,53 @@ def build_arg_parser() -> argparse.ArgumentParser:
             "Can also be supplied with REGISTER_TEMPLATE_ONLY."
         ),
     )
+    parser.add_argument(
+        "--branch-head",
+        action="store_true",
+        help=(
+            "Register templates against branch HEAD instead of pinning the current "
+            "Git commit. Can also be supplied with CLEARML_TEMPLATE_BRANCH_HEAD=true."
+        ),
+    )
     return parser
 
 
 def env_flag(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).lower() in {"1", "true", "yes", "y"}
+
+
+def should_pin_template_commit(*, branch_head: bool, env_branch_head: bool) -> bool:
+    """Return whether new templates should be pinned to the current Git commit."""
+
+    return not (branch_head or env_branch_head)
+
+
+def build_task_create_kwargs(
+    *,
+    project_name: str,
+    task_name: str,
+    task_type: str,
+    repo: str,
+    branch: str,
+    commit: str | None,
+    script: str,
+    requirements_file: str,
+) -> dict[str, str]:
+    """Build Task.create keyword arguments, omitting commit in branch-head mode."""
+
+    kwargs = {
+        "project_name": project_name,
+        "task_name": task_name,
+        "task_type": task_type,
+        "repo": repo,
+        "branch": branch,
+        "script": script,
+        "working_directory": ".",
+        "requirements_file": requirements_file,
+    }
+    if commit:
+        kwargs["commit"] = commit
+    return kwargs
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -381,25 +423,35 @@ def main(argv: list[str] | None = None) -> None:
         print("✅ Registering all templates")
 
     current_commit = check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    pin_template_commit = should_pin_template_commit(
+        branch_head=args.branch_head,
+        env_branch_head=env_flag("CLEARML_TEMPLATE_BRANCH_HEAD"),
+    )
     include_worktree_diff = env_flag("CLEARML_INCLUDE_WORKTREE_DIFF")
     if include_worktree_diff:
         print("⚠️ Including local uncommitted script diffs in template tasks")
     else:
         print("✅ Registering templates from Git commit only (no worktree diff)")
+    if pin_template_commit:
+        print(f"✅ Template execution mode: commit-pinned ({current_commit})")
+    else:
+        print("⚠️ Template execution mode: branch HEAD (commit not pinned)")
 
     # Dictionary để lưu ID mới nhằm cập nhật vào config.py
     new_ids = {}
 
     for name, task_type, script, config_var, requirements_file in selected_templates:
         task = Task.create(
-            project_name=PROJECT_TEMPLATE,
-            task_name=name,
-            task_type=task_type,
-            repo=settings["GIT_REPO"],
-            branch=settings["GIT_BRANCH"],
-            script=script,
-            working_directory=".",
-            requirements_file=requirements_file,
+            **build_task_create_kwargs(
+                project_name=PROJECT_TEMPLATE,
+                task_name=name,
+                task_type=task_type,
+                repo=settings["GIT_REPO"],
+                branch=settings["GIT_BRANCH"],
+                commit=current_commit if pin_template_commit else None,
+                script=script,
+                requirements_file=requirements_file,
+            )
         )
         script_diff = current_worktree_diff([script]) if include_worktree_diff else ""
         task.set_script(diff=script_diff)

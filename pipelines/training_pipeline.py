@@ -20,12 +20,14 @@ from config import (
     RUN_PIPELINE_CONTROLLER_LOCALLY,
     SERVICES_QUEUE,
     TRAINING_PIPELINE_NAME,
+    TRAINING_PIPELINE_STOP_AFTER,
 )
 from pipelines.specs import (
     TRAINING_STEPS,
     add_specs_to_pipeline,
     build_training_steps_for_horizons,
     build_pipeline_manifest,
+    select_specs_through_step,
     validate_pipeline_specs,
 )
 
@@ -78,7 +80,10 @@ def wait_for_pipeline_start(pipeline_id: str, max_wait_time: int = 30) -> bool:
 
 
 def main() -> None:
-    training_steps = build_training_steps_for_horizons(FORECAST_HORIZONS)
+    training_steps = select_specs_through_step(
+        build_training_steps_for_horizons(FORECAST_HORIZONS),
+        TRAINING_PIPELINE_STOP_AFTER,
+    )
     validate_pipeline_specs(training_steps)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -108,6 +113,7 @@ def main() -> None:
             "deployment_version": DEPLOYMENT_VERSION,
             "run_mode": run_mode,
             "timestamp": timestamp,
+            "stop_after": TRAINING_PIPELINE_STOP_AFTER,
         },
         name="Pipeline Args",
     )

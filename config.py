@@ -45,6 +45,7 @@ SERVICES_QUEUE = os.getenv("CLEARML_SERVICES_QUEUE", "mco-services")
 RUN_PIPELINE_CONTROLLER_LOCALLY = os.getenv(
     "RUN_PIPELINE_CONTROLLER_LOCALLY", "true"
 ).lower() in {"1", "true", "yes", "y"}
+TRAINING_PIPELINE_STOP_AFTER = os.getenv("TRAINING_PIPELINE_STOP_AFTER", "").strip()
 
 # =====================================================
 # Production Pipeline Scheduler

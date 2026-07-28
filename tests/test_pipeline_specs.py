@@ -7,6 +7,7 @@ from pipelines.specs import (
     add_specs_to_pipeline,
     build_pipeline_manifest,
     build_training_steps_for_horizons,
+    select_specs_through_step,
     validate_pipeline_specs,
 )
 
@@ -117,7 +118,30 @@ class PipelineSpecsTest(unittest.TestCase):
         self.assertEqual(candidate_verify_step.execution_queue(fake_config()), "services")
         self.assertEqual(deploy_step.execution_queue(fake_config()), "services")
         self.assertEqual(verify_step.execution_queue(fake_config()), "services")
-        self.assertTrue(all(spec.cache_executed_step for spec in TRAINING_STEPS))
+        self.assertFalse(candidate_deploy_step.cache_executed_step)
+        self.assertFalse(candidate_verify_step.cache_executed_step)
+        self.assertFalse(deploy_step.cache_executed_step)
+        self.assertFalse(verify_step.cache_executed_step)
+        cacheable_steps = {
+            "extract",
+            "feature",
+            "validate",
+            "drift",
+            "hpo",
+            "train",
+            "evaluate",
+            "register",
+            "explain_model",
+            "compare_champion",
+            "promote_champion",
+        }
+        self.assertTrue(
+            all(
+                spec.cache_executed_step
+                for spec in TRAINING_STEPS
+                if spec.name in cacheable_steps
+            )
+        )
 
     def test_production_specs_define_expected_uncached_runtime_steps(self):
         self.assertEqual(
@@ -173,6 +197,55 @@ class PipelineSpecsTest(unittest.TestCase):
         self.assertNotIn("deploy_serving_h7", names)
         self.assertEqual(train.parameter_override["General/horizon"], 7)
         self.assertEqual(evaluate.parameter_override["General/eval_horizon"], 7)
+
+    def test_select_specs_through_step_keeps_core_register_dag(self):
+        steps = select_specs_through_step(
+            build_training_steps_for_horizons((7,)),
+            "register",
+        )
+
+        self.assertEqual(
+            [spec.name for spec in steps],
+            [
+                "extract",
+                "feature",
+                "validate",
+                "drift",
+                "hpo",
+                "train",
+                "evaluate",
+                "register",
+            ],
+        )
+
+    def test_select_specs_through_step_expands_each_horizon_branch(self):
+        steps = select_specs_through_step(
+            build_training_steps_for_horizons((7, 14)),
+            "register",
+        )
+
+        self.assertEqual(
+            [spec.name for spec in steps],
+            [
+                "extract",
+                "feature",
+                "validate",
+                "drift",
+                "hpo",
+                "train_h7",
+                "evaluate_h7",
+                "register_h7",
+                "train_h14",
+                "evaluate_h14",
+                "register_h14",
+            ],
+        )
+
+    def test_select_specs_through_step_rejects_unknown_step(self):
+        with self.assertRaises(ValueError) as raised:
+            select_specs_through_step(TRAINING_STEPS, "not_a_step")
+
+        self.assertIn("not_a_step", str(raised.exception))
 
     def test_add_specs_to_pipeline_resolves_template_ids_and_queues(self):
         pipeline = FakePipeline()

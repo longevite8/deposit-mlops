@@ -82,6 +82,53 @@ def add_specs_to_pipeline(
         spec.add_to_pipeline(pipeline, config_module=config_module)
 
 
+def base_step_name(step_name: str) -> str:
+    """Return the unbranched step name for horizon-expanded names."""
+
+    prefix, separator, suffix = step_name.rpartition("_h")
+    if separator and suffix.isdigit():
+        return prefix
+    return step_name
+
+
+def select_specs_through_step(
+    specs: tuple[PipelineStepSpec, ...],
+    stop_after: str | None,
+) -> tuple[PipelineStepSpec, ...]:
+    """Return the dependency closure needed to run through a named step."""
+
+    requested = (stop_after or "").strip()
+    if not requested:
+        return specs
+
+    targets = {
+        spec.name
+        for spec in specs
+        if spec.name == requested or base_step_name(spec.name) == requested
+    }
+    if not targets:
+        valid = ", ".join(spec.name for spec in specs)
+        raise ValueError(
+            f"Unknown TRAINING_PIPELINE_STOP_AFTER={requested!r}. "
+            f"Valid step names: {valid}"
+        )
+
+    by_name = {spec.name: spec for spec in specs}
+    selected: set[str] = set()
+
+    def include_with_parents(name: str) -> None:
+        if name in selected:
+            return
+        selected.add(name)
+        for parent in by_name[name].parents:
+            include_with_parents(parent)
+
+    for target in targets:
+        include_with_parents(target)
+
+    return tuple(spec for spec in specs if spec.name in selected)
+
+
 def build_pipeline_manifest(
     *,
     pipeline_type: str,
@@ -188,7 +235,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
             "General/alias": config.CLEARML_CANDIDATE_SERVING_ALIAS,
             "General/horizon": config.FORECAST_HORIZON,
         },
-        cache_executed_step=True,
+        cache_executed_step=False,
         execution_queue_name="SERVICES_QUEUE",
     ),
     PipelineStepSpec(
@@ -203,7 +250,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
             "General/version": config.CLEARML_CANDIDATE_SERVING_ENDPOINT_VERSION,
             "General/horizon": config.FORECAST_HORIZON,
         },
-        cache_executed_step=True,
+        cache_executed_step=False,
         execution_queue_name="SERVICES_QUEUE",
     ),
     PipelineStepSpec(
@@ -249,7 +296,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
             "General/alias": config.CLEARML_SERVING_ALIAS,
             "General/horizon": config.FORECAST_HORIZON,
         },
-        cache_executed_step=True,
+        cache_executed_step=False,
         execution_queue_name="SERVICES_QUEUE",
     ),
     PipelineStepSpec(
@@ -264,7 +311,7 @@ TRAINING_STEPS: tuple[PipelineStepSpec, ...] = (
             "General/version": config.CLEARML_SERVING_ENDPOINT_VERSION,
             "General/horizon": config.FORECAST_HORIZON,
         },
-        cache_executed_step=True,
+        cache_executed_step=False,
         execution_queue_name="SERVICES_QUEUE",
     ),
 )

@@ -276,26 +276,31 @@ def compute_validation_loss_neural(
         max_steps = model.max_steps if hasattr(model, "max_steps") else 100
         random_seed = model.random_seed if hasattr(model, "random_seed") else 42
 
-        # Create fresh model (detached from any trainer)
-        model_fresh = model_class(
-            h=h,
-            input_size=input_size,
-            max_steps=max_steps,
-            random_seed=random_seed,
-            enable_progress_bar=False,
-        )
-
-        # For NBEATSx, add stack_types if it has it
+        # Get stack_types for NBEATSx (to avoid seasonality/trend conflicts with h=1)
+        stack_types = ["identity"]
         if hasattr(model, "stack_types"):
-            # Re-create with stack_types
+            stack_types = model.stack_types if model.stack_types else ["identity"]
+
+        # Create fresh model with correct parameters for each model type
+        model_name = model_class.__name__
+
+        if model_name == "NBEATSx":
+            # NBEATSx requires stack_types to avoid h=1 conflicts
             model_fresh = model_class(
                 h=h,
                 input_size=input_size,
                 max_steps=max_steps,
                 random_seed=random_seed,
-                stack_types=model.stack_types
-                if hasattr(model, "stack_types")
-                else ["identity"],
+                stack_types=stack_types,
+                enable_progress_bar=False,
+            )
+        else:
+            # NHITS and other models
+            model_fresh = model_class(
+                h=h,
+                input_size=input_size,
+                max_steps=max_steps,
+                random_seed=random_seed,
                 enable_progress_bar=False,
             )
 
@@ -307,25 +312,53 @@ def compute_validation_loss_neural(
         y_valid = valid_df["y"].values
         model_name = model_class.__name__
 
+        # Validate valid_df has required columns
+        if "ds" not in valid_df.columns:
+            print(
+                f"Error: valid_df missing 'ds' column. Columns: {valid_df.columns.tolist()}"
+            )
+            return 1.0
+
         # Predict on validation dates
         forecasts = []
         for idx in range(len(valid_df)):
             try:
-                pred_date = valid_df.iloc[idx]["ds"]
+                # Get validation date
+                try:
+                    pred_date = valid_df.iloc[idx]["ds"]
+                except KeyError as ke:
+                    print(
+                        f"Step {idx}: KeyError accessing column: {ke}. Columns: {valid_df.columns.tolist()}"
+                    )
+                    forecasts.append(y_valid[idx])
+                    continue
 
                 # Create frame for prediction
                 pred_frame = pd.DataFrame({"ds": [pred_date], "unique_id": ["target"]})
 
-                pred = nf_fresh.predict(pred_frame)
+                # Try to predict
+                try:
+                    pred = nf_fresh.predict(pred_frame)
+                except Exception as pred_err:
+                    print(f"Step {idx}: Prediction failed: {pred_err}")
+                    forecasts.append(y_valid[idx])
+                    continue
 
+                # Extract prediction value
                 if not pred.empty and model_name in pred.columns:
                     pred_val = float(pred[model_name].iloc[0])
                     forecasts.append(pred_val)
                 else:
+                    if pred.empty:
+                        print(f"Step {idx}: Prediction returned empty DataFrame")
+                    else:
+                        print(
+                            f"Step {idx}: Missing column '{model_name}' in prediction. Columns: {pred.columns.tolist()}"
+                        )
                     forecasts.append(y_valid[idx])
 
             except Exception as e:
-                print(f"Prediction at step {idx}: {e}")
+                print(f"Step {idx}: Unexpected error: {type(e).__name__}: {e}")
                 forecasts.append(y_valid[idx])
 
         # Compute MAPE (same metric as LightGBM for consistency)

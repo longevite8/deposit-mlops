@@ -191,7 +191,21 @@ class NBEATSxTrainer(ModelTrainer):
 
         # Predict
         forecasts = self.nf.predict(pred_df)
-        y_pred = forecasts["NBEATSx"].values
+
+        # Extract NBEATSx predictions (handle different output formats)
+        if "NBEATSx" in forecasts.columns:
+            y_pred = forecasts["NBEATSx"].values
+        else:
+            # Fallback: get first non-index column that's not ds or unique_id
+            pred_cols = [
+                col for col in forecasts.columns if col not in ["ds", "unique_id"]
+            ]
+            if pred_cols:
+                y_pred = forecasts[pred_cols[0]].values
+            else:
+                raise ValueError(
+                    f"Cannot find prediction column in forecasts. Columns: {forecasts.columns.tolist()}"
+                )
 
         # Inverse normalize
         y_pred = inverse_normalize(y_pred.reshape(-1, 1), self.scaler_y).flatten()

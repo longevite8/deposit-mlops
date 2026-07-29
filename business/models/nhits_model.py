@@ -127,7 +127,10 @@ class NHITSOptimizer(HyperparameterOptimizer):
             return mape
 
         except Exception as e:
+            import traceback
+
             print(f"NHITS trial failed: {e!s}")
+            print(traceback.format_exc())
             return float("inf")
 
     def get_search_space(self) -> dict[str, Any]:

@@ -132,7 +132,10 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
             return mape
 
         except Exception as e:
+            import traceback
+
             print(f"NBEATSx trial failed: {e!s}")
+            print(traceback.format_exc())
             return float("inf")
 
     def get_search_space(self) -> dict[str, Any]:

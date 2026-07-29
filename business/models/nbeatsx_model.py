@@ -101,26 +101,27 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
                 "dropout", self.config.dropout_min, self.config.dropout_max
             )
 
-            # Create NBEATSx model
-            # Note: NBEATSx with seasonality/trend stacks incompatible with h=1
-            # Use stack_types=['identity'] to use only identity stack (no decomposition)
+            # Create NBEATSx model with architecture params only
+            # Use stack_types=['identity'] to disable seasonality/trend (incompatible with h=1)
             model = NBEATSx(
                 h=self.config.forecast_horizon,
                 input_size=self.config.input_size,
                 n_layers=n_layers,
                 n_hidden=n_hidden,
                 dropout=dropout,
-                learning_rate=self.config.learning_rate,
-                batch_size=self.config.batch_size,
-                max_steps=self.config.max_steps,
-                early_stop_patience_steps=self.config.early_stopping_patience,
                 random_seed=self.config.random_state,
-                stack_types=["identity"],  # Disable seasonality/trend for h=1
+                stack_types=["identity"],
             )
 
             # Train NeuralForecast with validation data for early stopping
             nf = NeuralForecast(models=[model], freq="D")
-            nf.fit(self.train_df, val_df=self.valid_df)
+            nf.fit(
+                self.train_df,
+                val_df=self.valid_df,
+                max_steps=self.config.max_steps,
+                learning_rate=self.config.learning_rate,
+                batch_size=self.config.batch_size,
+            )
 
             # Validate
             forecasts = nf.predict(self.valid_df)
@@ -184,25 +185,25 @@ class NBEATSxTrainer(ModelTrainer):
             {"ds": train_dates, "y": y_train_norm.flatten(), "unique_id": "target"}
         )
 
-        # Create and train NBEATSx model
+        # Create NBEATSx model with architecture params only
         model = NBEATSx(
             h=self.config.forecast_horizon,
             input_size=self.config.input_size,
             n_layers=best_params.get("n_layers", 3),
             n_hidden=best_params.get("n_hidden", 128),
             dropout=best_params.get("dropout", 0.1),
-            learning_rate=self.config.learning_rate,
-            batch_size=self.config.batch_size,
-            max_steps=self.config.max_steps,
-            early_stop_patience_steps=self.config.early_stopping_patience,
             random_seed=self.config.random_state,
             stack_types=["identity"],
         )
 
-        # Train without validation data (not available in train method)
+        # Train with NeuralForecast
         self.nf = NeuralForecast(models=[model], freq="D")
-        # Disable early stopping if no validation data provided
-        self.nf.fit(train_df)
+        self.nf.fit(
+            train_df,
+            max_steps=self.config.max_steps,
+            learning_rate=self.config.learning_rate,
+            batch_size=self.config.batch_size,
+        )
 
         self.model = model
         self.feature_names = y_train.name if hasattr(y_train, "name") else ["target"]

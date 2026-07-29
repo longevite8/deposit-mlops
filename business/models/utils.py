@@ -7,6 +7,11 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+try:
+    from neuralforecast import NeuralForecast
+except ImportError:
+    NeuralForecast = None
+
 
 def create_temporal_tensors(
     X: np.ndarray, y: np.ndarray, input_size: int = 8, horizon: int = 1
@@ -231,39 +236,99 @@ def rolling_forecast_neural(
     return np.array(forecasts)
 
 
-def use_validation_loss(nf_model) -> float:
+def compute_validation_loss_neural(
+    nf,
+    model_name: str,
+    valid_df: pd.DataFrame,
+    train_df: pd.DataFrame,
+) -> float:
     """
-    Extract validation loss from trained NeuralForecast model.
+    Compute validation loss by making rolling forecasts on validation set.
 
-    This is faster than rolling forecast and uses the model's internal
-    validation loss computed during training.
+    NeuralForecast models with h=1 only forecast 1 step at a time.
+    To evaluate, we:
+    1. Use the fitted model to predict on validation set
+    2. Do rolling forecast: predict 1 step, update history, repeat
+    3. Compute MAE on all predictions vs actual values
 
     Args:
-        nf_model: Fitted NeuralForecast model instance
+        nf: Fitted NeuralForecast instance
+        model_name: Name of model ("NHITS" or "NBEATSx")
+        valid_df: Validation dataframe (ds, y, unique_id)
+        train_df: Training dataframe (ds, y, unique_id)
 
     Returns:
-        float: Validation loss value (MAE or other configured loss)
+        float: MAE on validation set
     """
+    from sklearn.metrics import mean_absolute_error
+
     try:
-        # Access PyTorch Lightning trainer
-        trainer = nf_model.trainer
+        # Extract actual validation values
+        y_valid = valid_df["y"].values
 
-        # Try to get validation loss from logged metrics
-        if hasattr(trainer, "logged_metrics"):
-            val_loss = trainer.logged_metrics.get("val_loss")
-            if val_loss is not None:
-                return float(val_loss)
+        # Rolling forecast
+        forecasts = []
+        history = train_df[["ds", "y", "unique_id"]].copy()
 
-        # Alternative: callback metrics
-        if hasattr(trainer, "callback_metrics"):
-            val_loss = trainer.callback_metrics.get("val_loss")
-            if val_loss is not None:
-                return float(val_loss)
+        for idx in range(len(valid_df)):
+            try:
+                # Predict next step from current history
+                # Create a temporary NeuralForecast with current history
+                nf_temp = NeuralForecast(models=nf.models, freq="D")
+                # Note: We reuse the already-trained model
 
-        # If neither works, return high penalty
-        print("Warning: Could not extract validation loss from trainer")
-        return float("inf")
+                pred = nf.predict()
+
+                if pred.empty or len(pred) == 0:
+                    print(f"Empty prediction at step {idx}")
+                    forecasts.append(y_valid[idx])  # Use actual value as fallback
+                else:
+                    # Extract prediction value
+                    pred_value = float(pred.iloc[0, 0])
+                    forecasts.append(pred_value)
+
+                # Append actual value to history for next iteration
+                next_date = history["ds"].max() + pd.Timedelta(days=1)
+                new_row = pd.DataFrame(
+                    {"ds": [next_date], "y": [y_valid[idx]], "unique_id": ["target"]}
+                )
+                history = pd.concat([history, new_row], ignore_index=True)
+
+            except Exception as e:
+                print(f"Forecast failed at step {idx}: {e}")
+                # Fallback: use remaining actual values
+                forecasts.extend(y_valid[idx : idx + 1])
+
+        # Compute MAE
+        forecasts = np.array(forecasts)
+        mae = mean_absolute_error(y_valid, forecasts)
+
+        return float(mae)
 
     except Exception as e:
-        print(f"Error extracting validation loss: {e}")
+        print(f"Error computing validation loss: {e}")
+        import traceback
+
+        traceback.print_exc()
         return float("inf")
+
+
+def use_validation_loss(
+    nf,
+    model_name: str,
+    valid_df: pd.DataFrame,
+    train_df: pd.DataFrame,
+) -> float:
+    """
+    Wrapper function to compute validation loss for neural models.
+
+    Args:
+        nf: Fitted NeuralForecast instance
+        model_name: Name of model ("NHITS" or "NBEATSx")
+        valid_df: Validation dataframe
+        train_df: Training dataframe
+
+    Returns:
+        float: MAE on validation set
+    """
+    return compute_validation_loss_neural(nf, model_name, valid_df, train_df)

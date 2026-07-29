@@ -95,23 +95,18 @@ class NHITSOptimizer(HyperparameterOptimizer):
             )
 
             # Train NeuralForecast with validation data
-            # NeuralForecast will compute validation loss internally during training
             nf = NeuralForecast(models=[model], freq="D")
             nf.fit(self.train_df, val_df=self.valid_df)
 
-            # Extract validation loss from model's trainer
-            # This avoids the issue of predict() only returning 1 step
+            # Compute validation loss using rolling forecast
             from business.models.utils import use_validation_loss
 
-            val_loss = use_validation_loss(model)
-
-            if val_loss == float("inf"):
-                print(
-                    f"Trial {trial.number}: validation loss unavailable, using MAE fallback"
-                )
-                # Fallback: try to compute from validation split
-                # Use final training loss as proxy
-                val_loss = model.trainer.callback_metrics.get("loss", float("inf"))
+            val_loss = use_validation_loss(
+                nf=nf,
+                model_name="NHITS",
+                valid_df=self.valid_df,
+                train_df=self.train_df,
+            )
 
             return val_loss
 

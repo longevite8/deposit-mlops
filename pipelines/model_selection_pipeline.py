@@ -122,7 +122,7 @@ pipe.add_step(
 
 pipe.add_step(
     name="compare_hpo",
-    parents=["hpo_lightgbm", "hpo_nbeatsx", "hpo_nhits"],
+    parents=["hpo_lightgbm", "hpo_nhits"],  # "hpo_nbeatsx"
     base_task_id=TEMPLATE_COMPARE_HPO_ID,
     parameter_override={
         "General/hpo_lightgbm_task_id": "${hpo_lightgbm.id}",

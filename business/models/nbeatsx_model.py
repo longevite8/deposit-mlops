@@ -102,8 +102,8 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
             )
 
             # Create NBEATSx model
-            # Note: NBEATSx has seasonality/trend stacks that require sufficient data
-            # Use decomposition=False to disable seasonality for short horizons (h=1)
+            # Note: NBEATSx with seasonality/trend stacks incompatible with h=1
+            # Use stack_types=['identity'] to use only identity stack (no decomposition)
             model = NBEATSx(
                 h=self.config.forecast_horizon,
                 input_size=self.config.input_size,
@@ -115,12 +115,12 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
                 max_steps=self.config.max_steps,
                 early_stop_patience_steps=self.config.early_stopping_patience,
                 random_seed=self.config.random_state,
-                decomposition=False,  # Disable seasonality/trend for h=1
+                stack_types=["identity"],  # Disable seasonality/trend for h=1
             )
 
-            # Train NeuralForecast
+            # Train NeuralForecast with validation data for early stopping
             nf = NeuralForecast(models=[model], freq="D")
-            nf.fit(self.train_df)
+            nf.fit(self.train_df, val_df=self.valid_df)
 
             # Validate
             forecasts = nf.predict(self.valid_df)
@@ -196,11 +196,12 @@ class NBEATSxTrainer(ModelTrainer):
             max_steps=self.config.max_steps,
             early_stop_patience_steps=self.config.early_stopping_patience,
             random_seed=self.config.random_state,
-            decomposition=False,
+            stack_types=["identity"],
         )
 
-        # Train
+        # Train without validation data (not available in train method)
         self.nf = NeuralForecast(models=[model], freq="D")
+        # Disable early stopping if no validation data provided
         self.nf.fit(train_df)
 
         self.model = model

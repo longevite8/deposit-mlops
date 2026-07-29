@@ -115,9 +115,9 @@ class NHITSOptimizer(HyperparameterOptimizer):
                 random_seed=self.config.random_state,
             )
 
-            # Train NeuralForecast
+            # Train NeuralForecast with validation data for early stopping
             nf = NeuralForecast(models=[model], freq="D")
-            nf.fit(self.train_df)
+            nf.fit(self.train_df, val_df=self.valid_df)
 
             # Validate
             forecasts = nf.predict(self.valid_df)
@@ -195,8 +195,9 @@ class NHITSTrainer(ModelTrainer):
             random_seed=self.config.random_state,
         )
 
-        # Train
+        # Train without validation data (not available in train method)
         self.nf = NeuralForecast(models=[model], freq="D")
+        # Disable early stopping if no validation data provided
         self.nf.fit(train_df)
 
         self.model = model

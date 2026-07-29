@@ -3,19 +3,20 @@ LightGBM Model Implementation - Gradient Boosting Regression.
 Sử dụng LightGBM cho tabular time series forecasting.
 """
 
+from typing import Any
+
+import joblib
+import numpy as np
 import optuna
+import pandas as pd
 from lightgbm import LGBMRegressor
 from sklearn.metrics import mean_absolute_percentage_error
-import pandas as pd
-import numpy as np
-from typing import Any, Dict, Optional, Tuple
-import joblib
 
 from business.models.base import (
-    HyperparameterOptimizer,
-    ModelTrainer,
     FeatureImportanceCalculator,
+    HyperparameterOptimizer,
     ModelConfig,
+    ModelTrainer,
 )
 
 
@@ -90,7 +91,7 @@ class LGBMOptimizer(HyperparameterOptimizer):
 
         return mape
 
-    def get_search_space(self) -> Dict[str, Any]:
+    def get_search_space(self) -> dict[str, Any]:
         """
         Return search space description (used for logging).
 
@@ -118,10 +119,10 @@ class LGBMTrainer(ModelTrainer):
         self,
         X_train: pd.DataFrame,
         y_train: pd.Series,
-        X_valid: Optional[pd.DataFrame] = None,
-        y_valid: Optional[pd.Series] = None,
-        best_params: Optional[Dict] = None,
-        callbacks: Optional[list] = None,
+        X_valid: pd.DataFrame | None = None,
+        y_valid: pd.Series | None = None,
+        best_params: dict | None = None,
+        callbacks: list | None = None,
     ) -> LGBMRegressor:
         """
         Train LightGBM model.
@@ -138,6 +139,10 @@ class LGBMTrainer(ModelTrainer):
         if best_params is None:
             best_params = {}
 
+        # Filter out verbose if it's a boolean (LightGBM 4.7+ requires int)
+        if "verbose" in best_params and isinstance(best_params["verbose"], bool):
+            del best_params["verbose"]
+
         # Merge best_params with defaults
         model_params = {
             "n_estimators": best_params.get("n_estimators", 200),
@@ -145,7 +150,7 @@ class LGBMTrainer(ModelTrainer):
             "num_leaves": best_params.get("num_leaves", 31),
             "max_depth": best_params.get("max_depth", 10),
             "random_state": self.config.random_state,
-            "verbose": self.config.verbose,
+            "verbose": -1,  # Ensure verbose is int, not boolean
         }
 
         # Create model
@@ -190,7 +195,7 @@ class LGBMImportanceCalculator(FeatureImportanceCalculator):
 
     def calculate_importance(
         self, model: LGBMRegressor, feature_names: list
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Calculate Split và Gain importance.
 

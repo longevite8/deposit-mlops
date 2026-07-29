@@ -101,15 +101,10 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
             nf = NeuralForecast(models=[model], freq="D")
             nf.fit(self.train_df, val_df=self.valid_df)
 
-            # Compute validation loss using rolling forecast
-            from business.models.utils import use_validation_loss
+            # Extract validation loss that was computed during training
+            from business.models.utils import compute_validation_loss_neural
 
-            val_loss = use_validation_loss(
-                nf=nf,
-                model_name="NBEATSx",
-                valid_df=self.valid_df,
-                train_df=self.train_df,
-            )
+            val_loss = compute_validation_loss_neural(model, self.valid_df)
 
             return val_loss
 

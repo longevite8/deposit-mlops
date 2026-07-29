@@ -102,7 +102,9 @@ class NHITSOptimizer(HyperparameterOptimizer):
             # Extract validation loss that was computed during training
             from business.models.utils import compute_validation_loss_neural
 
-            val_loss = compute_validation_loss_neural(model, self.valid_df)
+            val_loss = compute_validation_loss_neural(
+                model, self.valid_df, self.train_df
+            )
 
             return val_loss
 

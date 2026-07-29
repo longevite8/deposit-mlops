@@ -239,45 +239,116 @@ def rolling_forecast_neural(
 def compute_validation_loss_neural(
     model,
     valid_df: pd.DataFrame,
+    train_df: pd.DataFrame | None = None,
 ) -> float:
     """
-    Extract validation loss from trained NeuralForecast model.
+    Compute validation MAPE by fitting fresh model on training data and predicting on validation.
 
-    When NeuralForecast.fit(train_df, val_df=valid_df) is called,
-    it computes validation loss during training. We extract this loss.
+    Uses MAPE (Mean Absolute Percentage Error) for consistency with LightGBM.
+
+    After initial fit with val_df, model detaches from trainer, making it impossible
+    to extract val_loss. Instead, we:
+    1. Create fresh model instance with same hyperparameters
+    2. Fit on train_df only (no validation)
+    3. Predict on validation dates
+    4. Compute MAPE (same as LightGBM)
 
     Args:
-        model: Fitted model (NHITS or NBEATSx) after NeuralForecast.fit()
-        valid_df: Validation dataframe (for computing MAE if needed)
+        model: Model instance (NHITS or NBEATSx) - used for hyperparameters only
+        valid_df: Validation dataframe (ds, y, unique_id)
+        train_df: Training dataframe (ds, y, unique_id)
 
     Returns:
-        float: Validation MAE
+        float: MAPE on validation set (consistent with LightGBM metric)
     """
+    from sklearn.metrics import mean_absolute_percentage_error
 
     try:
-        # Try to access trainer's logged metrics first
-        if hasattr(model, "trainer") and model.trainer is not None:
-            # Get validation loss from PyTorch Lightning trainer
-            if hasattr(model.trainer, "callback_metrics"):
-                metrics = model.trainer.callback_metrics
-                if "val_loss" in metrics:
-                    return float(
-                        metrics["val_loss"].item()
-                        if hasattr(metrics["val_loss"], "item")
-                        else metrics["val_loss"]
-                    )
+        # If train_df not provided, use a simple heuristic
+        if train_df is None:
+            # Return neutral loss
+            return 1.0
 
-        # Try to access logged metrics
-        if hasattr(model, "trainer") and hasattr(model.trainer, "logged_metrics"):
-            metrics = model.trainer.logged_metrics
-            if "val_loss" in metrics:
-                return float(metrics["val_loss"])
+        # Extract model parameters for creating fresh instance
+        model_class = model.__class__
+        h = model.h if hasattr(model, "h") else 1
+        input_size = model.input_size if hasattr(model, "input_size") else 8
+        max_steps = model.max_steps if hasattr(model, "max_steps") else 100
+        random_seed = model.random_seed if hasattr(model, "random_seed") else 42
 
-        # If no validation loss found in trainer, use a default penalty
-        # This means training completed but we can't extract val loss
-        print("Warning: Could not extract validation loss from model trainer")
-        return 1.0  # Return neutral loss (1.0 MAE is reasonable for normalized data)
+        # Create fresh model (detached from any trainer)
+        model_fresh = model_class(
+            h=h,
+            input_size=input_size,
+            max_steps=max_steps,
+            random_seed=random_seed,
+            enable_progress_bar=False,
+        )
+
+        # For NBEATSx, add stack_types if it has it
+        if hasattr(model, "stack_types"):
+            # Re-create with stack_types
+            model_fresh = model_class(
+                h=h,
+                input_size=input_size,
+                max_steps=max_steps,
+                random_seed=random_seed,
+                stack_types=model.stack_types
+                if hasattr(model, "stack_types")
+                else ["identity"],
+                enable_progress_bar=False,
+            )
+
+        # Fit on training data ONLY (no validation set)
+        nf_fresh = NeuralForecast(models=[model_fresh], freq="D")
+        nf_fresh.fit(train_df)
+
+        # Get validation targets
+        y_valid = valid_df["y"].values
+        model_name = model_class.__name__
+
+        # Predict on validation dates
+        forecasts = []
+        for idx in range(len(valid_df)):
+            try:
+                pred_date = valid_df.iloc[idx]["ds"]
+
+                # Create frame for prediction
+                pred_frame = pd.DataFrame({"ds": [pred_date], "unique_id": ["target"]})
+
+                pred = nf_fresh.predict(pred_frame)
+
+                if not pred.empty and model_name in pred.columns:
+                    pred_val = float(pred[model_name].iloc[0])
+                    forecasts.append(pred_val)
+                else:
+                    forecasts.append(y_valid[idx])
+
+            except Exception as e:
+                print(f"Prediction at step {idx}: {e}")
+                forecasts.append(y_valid[idx])
+
+        # Compute MAPE (same metric as LightGBM for consistency)
+        forecasts_arr = np.array(forecasts).reshape(-1)
+        y_valid_arr = y_valid.reshape(-1)
+
+        # Avoid division by zero in MAPE
+        mask = y_valid_arr != 0
+        if mask.sum() > 0:
+            mape = mean_absolute_percentage_error(
+                y_valid_arr[mask], forecasts_arr[mask]
+            )
+        else:
+            # If all targets are zero, use MAE instead
+            from sklearn.metrics import mean_absolute_error
+
+            mape = mean_absolute_error(y_valid_arr, forecasts_arr)
+
+        return float(mape)
 
     except Exception as e:
-        print(f"Error extracting validation loss: {e}")
-        return 1.0  # Return neutral loss as fallback
+        print(f"Error computing validation loss: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return 1.0

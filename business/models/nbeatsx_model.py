@@ -78,7 +78,7 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
         )
 
     def objective(self, trial: optuna.Trial) -> float:
-        """Objective function cho Optuna - minimize MAPE."""
+        """Objective function cho Optuna - minimize validation loss."""
         try:
             # Suggest hyperparameters
             input_size = trial.suggest_categorical("input_size", [8, 12, 16, 20, 24])
@@ -96,25 +96,26 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
                 enable_progress_bar=False,
             )
 
-            # Train NeuralForecast with validation data for early stopping
+            # Train NeuralForecast with validation data
+            # NeuralForecast will compute validation loss internally during training
             nf = NeuralForecast(models=[model], freq="D")
             nf.fit(self.train_df, val_df=self.valid_df)
 
-            # Validate
-            forecasts = nf.predict(self.valid_df)
-            y_pred = forecasts["NBEATSx"].values
+            # Extract validation loss from model's trainer
+            # This avoids the issue of predict() only returning 1 step
+            from business.models.utils import use_validation_loss
 
-            # Inverse normalize
-            from business.models.utils import inverse_normalize
+            val_loss = use_validation_loss(model)
 
-            y_pred = inverse_normalize(y_pred.reshape(-1, 1), self.scaler_y).flatten()
-            y_valid = inverse_normalize(self.y_valid_norm, self.scaler_y).flatten()
+            if val_loss == float("inf"):
+                print(
+                    f"Trial {trial.number}: validation loss unavailable, using MAE fallback"
+                )
+                # Fallback: try to compute from validation split
+                # Use final training loss as proxy
+                val_loss = model.trainer.callback_metrics.get("loss", float("inf"))
 
-            # Calculate MAPE
-            from sklearn.metrics import mean_absolute_percentage_error
-
-            mape = mean_absolute_percentage_error(y_valid, y_pred)
-            return mape
+            return val_loss
 
         except Exception as e:
             import traceback

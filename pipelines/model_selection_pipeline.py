@@ -18,6 +18,8 @@ from config import (
     TEMPLATE_EXTRACT_ID,
     TEMPLATE_FEATURE_ID,
     TEMPLATE_HPO_LIGHTGBM_ID,
+    TEMPLATE_HPO_NBEATSX_ID,
+    TEMPLATE_HPO_NHITS_ID,
     TEMPLATE_TRAIN_ID,
     TEMPLATE_VALIDATE_ID,
 )
@@ -96,38 +98,36 @@ pipe.add_step(
     cache_executed_step=False,
 )
 
-# ⚠️ TEMPORARY: Disable neural models - DEBUG later
-# pipe.add_step(
-#     name="hpo_nbeatsx",
-#     parents=["drift"],
-#     base_task_id=TEMPLATE_HPO_NBEATSX_ID,
-#     parameter_override={"General/feature_task_id": "${feature.id}"},
-#     execution_queue=CPU_QUEUE,
-#     cache_executed_step=False,
-# )
+pipe.add_step(
+    name="hpo_nbeatsx",
+    parents=["drift"],
+    base_task_id=TEMPLATE_HPO_NBEATSX_ID,
+    parameter_override={"General/feature_task_id": "${feature.id}"},
+    execution_queue=CPU_QUEUE,
+    cache_executed_step=False,
+)
 
-# pipe.add_step(
-#     name="hpo_nhits",
-#     parents=["drift"],
-#     base_task_id=TEMPLATE_HPO_NHITS_ID,
-#     parameter_override={"General/feature_task_id": "${feature.id}"},
-#     execution_queue=CPU_QUEUE,
-#     cache_executed_step=False,
-# )
+pipe.add_step(
+    name="hpo_nhits",
+    parents=["drift"],
+    base_task_id=TEMPLATE_HPO_NHITS_ID,
+    parameter_override={"General/feature_task_id": "${feature.id}"},
+    execution_queue=CPU_QUEUE,
+    cache_executed_step=False,
+)
 
 # =====================================================
 # Step 6: Compare HPO Results & Select Best Model
 # =====================================================
 
-# ⚠️ TEMPORARY: Only LightGBM (neural models disabled for debugging)
 pipe.add_step(
     name="compare_hpo",
-    parents=["hpo_lightgbm"],
+    parents=["hpo_lightgbm", "hpo_nbeatsx", "hpo_nhits"],
     base_task_id=TEMPLATE_COMPARE_HPO_ID,
     parameter_override={
         "General/hpo_lightgbm_task_id": "${hpo_lightgbm.id}",
-        "General/hpo_nbeatsx_task_id": "",  # Empty for now
-        "General/hpo_nhits_task_id": "",  # Empty for now
+        "General/hpo_nbeatsx_task_id": "${hpo_nbeatsx.id}",
+        "General/hpo_nhits_task_id": "${hpo_nhits.id}",
     },
     execution_queue=CPU_QUEUE,
     cache_executed_step=False,

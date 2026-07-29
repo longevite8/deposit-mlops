@@ -1,5 +1,5 @@
 """
-NHITS Model Implementation - Dùng NeuralForecast.
+NBEATSx Model Implementation - Dùng NeuralForecast.
 Requires: pip install neuralforecast
 """
 
@@ -20,16 +20,16 @@ from business.models.base import (
 
 try:
     from neuralforecast import NeuralForecast
-    from neuralforecast.models import NHITS
+    from neuralforecast.models import NBEATSx
 except ImportError:
     raise ImportError(
-        "NHITS requires: pip install neuralforecast. "
-        "Please install before using NHITS model."
+        "NBEATSx requires: pip install neuralforecast. "
+        "Please install before using NBEATSx model."
     )
 
 
 class NBEATSxConfig(ModelConfig):
-    """Configuration cho NHITS model (thay thế NBEATSx)."""
+    """Configuration cho NBEATSx model."""
 
     # HPO search space
     n_layers_min: int = 2
@@ -49,7 +49,7 @@ class NBEATSxConfig(ModelConfig):
 
 
 class NBEATSxOptimizer(HyperparameterOptimizer):
-    """Hyperparameter Optimizer cho NHITS using Optuna."""
+    """Hyperparameter Optimizer cho NBEATSx using Optuna."""
 
     def __init__(self, config: NBEATSxConfig):
         super().__init__(config)
@@ -100,8 +100,8 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
                 "dropout", self.config.dropout_min, self.config.dropout_max
             )
 
-            # Create NHITS model
-            model = NHITS(
+            # Create NBEATSx model
+            model = NBEATSx(
                 h=self.config.forecast_horizon,
                 input_size=self.config.input_size,
                 n_layers=n_layers,
@@ -112,7 +112,6 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
                 max_epochs=self.config.epochs,
                 early_stop_patience_steps=self.config.early_stopping_patience,
                 random_seed=self.config.random_state,
-                loss="mape",  # Optimize for MAPE
             )
 
             # Train NeuralForecast
@@ -121,7 +120,7 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
 
             # Validate
             forecasts = nf.predict(self.valid_df)
-            y_pred = forecasts["NHITS"].values
+            y_pred = forecasts["NBEATSx"].values
 
             # Inverse normalize
             from business.models.utils import inverse_normalize
@@ -136,7 +135,7 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
             return mape
 
         except Exception as e:
-            print(f"NHITS trial failed: {e!s}")
+            print(f"NBEATSx trial failed: {e!s}")
             return float("inf")
 
     def get_search_space(self) -> dict[str, Any]:

@@ -112,7 +112,6 @@ class NHITSOptimizer(HyperparameterOptimizer):
                 max_epochs=self.config.epochs,
                 early_stop_patience_steps=self.config.early_stopping_patience,
                 random_seed=self.config.random_state,
-                loss="mape",  # Optimize for MAPE
             )
 
             # Train NeuralForecast

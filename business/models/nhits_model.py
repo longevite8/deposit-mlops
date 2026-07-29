@@ -31,17 +31,12 @@ except ImportError:
 class NHITSConfig(ModelConfig):
     """Configuration cho NHITS model."""
 
-    # HPO search space
-    n_layers_min: int = 2
-    n_layers_max: int = 5
-    n_hidden_min: int = 64
-    n_hidden_max: int = 256
-    dropout_min: float = 0.0
-    dropout_max: float = 0.3
-
     # Model architecture
     input_size: int = 8
     forecast_horizon: int = 1
+
+    # Training hyperparameters
+    max_steps: int = 100
 
 
 class NHITSOptimizer(HyperparameterOptimizer):
@@ -86,24 +81,17 @@ class NHITSOptimizer(HyperparameterOptimizer):
         """Objective function cho Optuna - minimize MAPE."""
         try:
             # Suggest hyperparameters
-            n_layers = trial.suggest_int(
-                "n_layers", self.config.n_layers_min, self.config.n_layers_max
-            )
-            n_hidden = trial.suggest_int(
-                "n_hidden", self.config.n_hidden_min, self.config.n_hidden_max
-            )
-            dropout = trial.suggest_float(
-                "dropout", self.config.dropout_min, self.config.dropout_max
-            )
+            input_size = trial.suggest_categorical("input_size", [8, 12, 16, 20, 24])
+            max_steps = trial.suggest_int("max_steps", 50, 200)
+            random_seed = trial.suggest_int("random_seed", 1, 10)
 
-            # Create NHITS model with architecture params only
+            # Create NHITS model
             model = NHITS(
                 h=self.config.forecast_horizon,
-                input_size=self.config.input_size,
-                n_layers=n_layers,
-                n_hidden=n_hidden,
-                dropout=dropout,
-                random_seed=self.config.random_state,
+                input_size=input_size,
+                max_steps=max_steps,
+                random_seed=random_seed,
+                enable_progress_bar=False,
             )
 
             # Train NeuralForecast with validation data for early stopping
@@ -136,9 +124,9 @@ class NHITSOptimizer(HyperparameterOptimizer):
     def get_search_space(self) -> dict[str, Any]:
         """Return search space description."""
         return {
-            "n_layers": f"[{self.config.n_layers_min}, {self.config.n_layers_max}]",
-            "n_hidden": f"[{self.config.n_hidden_min}, {self.config.n_hidden_max}]",
-            "dropout": f"[{self.config.dropout_min}, {self.config.dropout_max}]",
+            "input_size": "[8, 12, 16, 20, 24]",
+            "max_steps": "[50, 200]",
+            "random_seed": "[1, 10]",
         }
 
 
@@ -175,14 +163,13 @@ class NHITSTrainer(ModelTrainer):
             {"ds": train_dates, "y": y_train_norm.flatten(), "unique_id": "target"}
         )
 
-        # Create NHITS model with architecture params only
+        # Create NHITS model with best hyperparameters from HPO
         model = NHITS(
             h=self.config.forecast_horizon,
-            input_size=self.config.input_size,
-            n_layers=best_params.get("n_layers", 3),
-            n_hidden=best_params.get("n_hidden", 128),
-            dropout=best_params.get("dropout", 0.1),
-            random_seed=self.config.random_state,
+            input_size=best_params.get("input_size", self.config.input_size),
+            max_steps=best_params.get("max_steps", self.config.max_steps),
+            random_seed=best_params.get("random_seed", self.config.random_state),
+            enable_progress_bar=False,
         )
 
         # Train with NeuralForecast

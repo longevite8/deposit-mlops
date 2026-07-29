@@ -3,8 +3,9 @@ Generic Hyperparameter Optimization Orchestrator.
 Hoạt động với bất kỳ model type nào thông qua Strategy pattern.
 """
 
+from typing import Any
+
 import optuna
-from typing import Optional, Any
 import pandas as pd
 
 
@@ -16,7 +17,7 @@ def run_generic_hpo_optimization(
     y_valid: pd.Series,
     n_trials: int = 50,
     random_state: int = 42,
-    callbacks: Optional[list] = None,
+    callbacks: list | None = None,
 ) -> optuna.Study:
     """
     Thực hiện tối ưu hóa Hyperparameters bằng Optuna cho bất kỳ model type nào.
@@ -73,7 +74,7 @@ def run_generic_hpo_optimization(
     # =====================================================
 
     study.optimize(
-        objective=optimizer.objective,
+        optimizer.objective,
         n_trials=n_trials,
         callbacks=callbacks,
     )

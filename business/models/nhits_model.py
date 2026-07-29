@@ -45,6 +45,7 @@ class NHITSConfig(ModelConfig):
     learning_rate: float = 0.001
     batch_size: int = 32
     epochs: int = 100
+    max_steps: int = 1000  # NeuralForecast uses max_steps (not max_epochs)
     early_stopping_patience: int = 10
 
 
@@ -109,7 +110,7 @@ class NHITSOptimizer(HyperparameterOptimizer):
                 dropout=dropout,
                 learning_rate=self.config.learning_rate,
                 batch_size=self.config.batch_size,
-                max_epochs=self.config.epochs,
+                max_steps=self.config.max_steps,
                 early_stop_patience_steps=self.config.early_stopping_patience,
                 random_seed=self.config.random_state,
             )
@@ -189,10 +190,9 @@ class NHITSTrainer(ModelTrainer):
             dropout=best_params.get("dropout", 0.1),
             learning_rate=self.config.learning_rate,
             batch_size=self.config.batch_size,
-            max_epochs=self.config.epochs,
+            max_steps=self.config.max_steps,
             early_stop_patience_steps=self.config.early_stopping_patience,
             random_seed=self.config.random_state,
-            loss="mape",
         )
 
         # Train

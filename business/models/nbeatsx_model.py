@@ -45,6 +45,7 @@ class NBEATSxConfig(ModelConfig):
     learning_rate: float = 0.001
     batch_size: int = 32
     epochs: int = 100
+    max_steps: int = 1000  # NeuralForecast uses max_steps (not max_epochs)
     early_stopping_patience: int = 10
 
 
@@ -101,6 +102,8 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
             )
 
             # Create NBEATSx model
+            # Note: NBEATSx has seasonality/trend stacks that require sufficient data
+            # Use decomposition=False to disable seasonality for short horizons (h=1)
             model = NBEATSx(
                 h=self.config.forecast_horizon,
                 input_size=self.config.input_size,
@@ -109,9 +112,10 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
                 dropout=dropout,
                 learning_rate=self.config.learning_rate,
                 batch_size=self.config.batch_size,
-                max_epochs=self.config.epochs,
+                max_steps=self.config.max_steps,
                 early_stop_patience_steps=self.config.early_stopping_patience,
                 random_seed=self.config.random_state,
+                decomposition=False,  # Disable seasonality/trend for h=1
             )
 
             # Train NeuralForecast
@@ -148,7 +152,7 @@ class NBEATSxOptimizer(HyperparameterOptimizer):
 
 
 class NBEATSxTrainer(ModelTrainer):
-    """Model Trainer cho NHITS (thay thế NBEATSx)."""
+    """Model Trainer cho NBEATSx."""
 
     def __init__(self, config: NBEATSxConfig):
         super().__init__(config)
@@ -165,7 +169,7 @@ class NBEATSxTrainer(ModelTrainer):
         best_params: dict | None = None,
         callbacks: list | None = None,
     ) -> Any:
-        """Train NHITS model."""
+        """Train NBEATSx model."""
         if best_params is None:
             best_params = {}
 
@@ -180,8 +184,8 @@ class NBEATSxTrainer(ModelTrainer):
             {"ds": train_dates, "y": y_train_norm.flatten(), "unique_id": "target"}
         )
 
-        # Create and train NHITS model
-        model = NHITS(
+        # Create and train NBEATSx model
+        model = NBEATSx(
             h=self.config.forecast_horizon,
             input_size=self.config.input_size,
             n_layers=best_params.get("n_layers", 3),
@@ -189,10 +193,10 @@ class NBEATSxTrainer(ModelTrainer):
             dropout=best_params.get("dropout", 0.1),
             learning_rate=self.config.learning_rate,
             batch_size=self.config.batch_size,
-            max_epochs=self.config.epochs,
+            max_steps=self.config.max_steps,
             early_stop_patience_steps=self.config.early_stopping_patience,
             random_seed=self.config.random_state,
-            loss="mape",
+            decomposition=False,
         )
 
         # Train
@@ -217,7 +221,7 @@ class NBEATSxTrainer(ModelTrainer):
 
         # Predict
         forecasts = self.nf.predict(pred_df)
-        y_pred = forecasts["NHITS"].values
+        y_pred = forecasts["NBEATSx"].values
 
         # Inverse normalize
         y_pred = inverse_normalize(y_pred.reshape(-1, 1), self.scaler_y).flatten()

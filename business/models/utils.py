@@ -312,58 +312,54 @@ def compute_validation_loss_neural(
         y_valid = valid_df["y"].values
         model_name = model_class.__name__
 
-        # Validate valid_df has required columns
-        if "ds" not in valid_df.columns:
-            print(
-                f"Error: valid_df missing 'ds' column. Columns: {valid_df.columns.tolist()}"
+        # Predict on entire validation set at once (more efficient, follows NeuralForecast API)
+        try:
+            # Create prediction frame with all validation dates
+            # NeuralForecast needs y column even for prediction (for validation)
+            # Use dummy y values since they won't affect predictions
+            pred_df = pd.DataFrame(
+                {
+                    "ds": valid_df["ds"].values,
+                    "y": np.zeros_like(
+                        y_valid
+                    ),  # Dummy y values for predict() validation
+                    "unique_id": "target",
+                }
             )
+
+            # Make prediction on entire validation set
+            forecasts_df = nf_fresh.predict(pred_df)
+
+            # Extract predictions
+            if model_name in forecasts_df.columns:
+                forecasts_arr = forecasts_df[model_name].values
+            else:
+                # Fallback: get first numeric column (should be model prediction)
+                pred_cols = [
+                    col
+                    for col in forecasts_df.columns
+                    if col not in ["ds", "unique_id"]
+                ]
+                if pred_cols:
+                    forecasts_arr = forecasts_df[pred_cols[0]].values
+                else:
+                    print(
+                        f"Error: No prediction column found. Columns: {forecasts_df.columns.tolist()}"
+                    )
+                    return 1.0
+
+            # Ensure arrays have correct shape
+            forecasts_arr = forecasts_arr.reshape(-1)
+            y_valid_arr = y_valid.reshape(-1)
+
+        except Exception as e:
+            print(f"Error during batch prediction: {type(e).__name__}: {e}")
+            import traceback
+
+            traceback.print_exc()
             return 1.0
 
-        # Predict on validation dates
-        forecasts = []
-        for idx in range(len(valid_df)):
-            try:
-                # Get validation date
-                try:
-                    pred_date = valid_df.iloc[idx]["ds"]
-                except KeyError as ke:
-                    print(
-                        f"Step {idx}: KeyError accessing column: {ke}. Columns: {valid_df.columns.tolist()}"
-                    )
-                    forecasts.append(y_valid[idx])
-                    continue
-
-                # Create frame for prediction
-                pred_frame = pd.DataFrame({"ds": [pred_date], "unique_id": ["target"]})
-
-                # Try to predict
-                try:
-                    pred = nf_fresh.predict(pred_frame)
-                except Exception as pred_err:
-                    print(f"Step {idx}: Prediction failed: {pred_err}")
-                    forecasts.append(y_valid[idx])
-                    continue
-
-                # Extract prediction value
-                if not pred.empty and model_name in pred.columns:
-                    pred_val = float(pred[model_name].iloc[0])
-                    forecasts.append(pred_val)
-                else:
-                    if pred.empty:
-                        print(f"Step {idx}: Prediction returned empty DataFrame")
-                    else:
-                        print(
-                            f"Step {idx}: Missing column '{model_name}' in prediction. Columns: {pred.columns.tolist()}"
-                        )
-                    forecasts.append(y_valid[idx])
-
-            except Exception as e:
-                print(f"Step {idx}: Unexpected error: {type(e).__name__}: {e}")
-                forecasts.append(y_valid[idx])
-
         # Compute MAPE (same metric as LightGBM for consistency)
-        forecasts_arr = np.array(forecasts).reshape(-1)
-        y_valid_arr = y_valid.reshape(-1)
 
         # Avoid division by zero in MAPE
         mask = y_valid_arr != 0

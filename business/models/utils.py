@@ -312,51 +312,105 @@ def compute_validation_loss_neural(
         y_valid = valid_df["y"].values
         model_name = model_class.__name__
 
-        # Predict on entire validation set at once (more efficient, follows NeuralForecast API)
-        try:
-            # Create prediction frame with all validation dates
-            # NeuralForecast needs y column even for prediction (for validation)
-            # Use dummy y values since they won't affect predictions
-            pred_df = pd.DataFrame(
-                {
-                    "ds": valid_df["ds"].values,
-                    "y": np.zeros_like(
-                        y_valid
-                    ),  # Dummy y values for predict() validation
-                    "unique_id": "target",
-                }
-            )
+        # Use expanding window (rolling forecast) approach:
+        # Fit incrementally on train + previous validation points, predict next point
+        # This aligns with h=1 single-step forecast and matches real-time usage
+        all_forecasts = []
+        train_combined = train_df.copy()
 
-            # Make prediction on entire validation set
-            forecasts_df = nf_fresh.predict(pred_df)
+        print(f"📊 Rolling forecast over {len(valid_df)} validation points...")
 
-            # Extract predictions
-            if model_name in forecasts_df.columns:
-                forecasts_arr = forecasts_df[model_name].values
-            else:
-                # Fallback: get first numeric column (should be model prediction)
-                pred_cols = [
-                    col
-                    for col in forecasts_df.columns
-                    if col not in ["ds", "unique_id"]
-                ]
-                if pred_cols:
-                    forecasts_arr = forecasts_df[pred_cols[0]].values
-                else:
-                    print(
-                        f"Error: No prediction column found. Columns: {forecasts_df.columns.tolist()}"
+        for idx in range(len(valid_df)):
+            try:
+                # For each validation point, fit model on expanded training set
+                # (train + all previous validation points)
+
+                model_fresh_iter = model_class(
+                    h=1,  # Single-step forecast
+                    input_size=input_size,
+                    max_steps=max_steps,
+                    random_seed=random_seed,
+                    enable_progress_bar=False,
+                )
+
+                # Add stack_types for NBEATSx
+                if model_name == "NBEATSx":
+                    model_fresh_iter = model_class(
+                        h=1,
+                        input_size=input_size,
+                        max_steps=max_steps,
+                        random_seed=random_seed,
+                        stack_types=stack_types,
+                        enable_progress_bar=False,
                     )
-                    return 1.0
 
-            # Ensure arrays have correct shape
-            forecasts_arr = forecasts_arr.reshape(-1)
-            y_valid_arr = y_valid.reshape(-1)
+                # Fit on expanded training set
+                nf_iter = NeuralForecast(models=[model_fresh_iter], freq="D")
+                nf_iter.fit(train_combined)
 
-        except Exception as e:
-            print(f"Error during batch prediction: {type(e).__name__}: {e}")
-            import traceback
+                # Create prediction frame for next validation point
+                # NeuralForecast expects (ds, y, unique_id) even for prediction
+                next_point_df = pd.DataFrame(
+                    {
+                        "ds": [valid_df.iloc[idx]["ds"]],
+                        "y": [0.0],  # Dummy y for validation
+                        "unique_id": "target",
+                    }
+                )
 
-            traceback.print_exc()
+                # Predict next point (1 step ahead from current training end)
+                pred = nf_iter.predict(next_point_df)
+
+                # Extract prediction
+                if not pred.empty:
+                    if model_name in pred.columns:
+                        pred_val = float(pred[model_name].iloc[0])
+                    else:
+                        # Fallback to first prediction column
+                        pred_cols = [
+                            col
+                            for col in pred.columns
+                            if col not in ["ds", "unique_id"]
+                        ]
+                        pred_val = (
+                            float(pred[pred_cols[0]].iloc[0])
+                            if pred_cols
+                            else y_valid[idx]
+                        )
+
+                    all_forecasts.append(pred_val)
+                else:
+                    all_forecasts.append(y_valid[idx])
+
+                # Add actual value to training for next iteration
+                # This simulates the rolling forecast window
+                next_actual_df = pd.DataFrame(
+                    {
+                        "ds": [valid_df.iloc[idx]["ds"]],
+                        "y": [y_valid[idx]],
+                        "unique_id": "target",
+                    }
+                )
+                train_combined = pd.concat(
+                    [train_combined, next_actual_df], ignore_index=True
+                )
+
+                if (idx + 1) % max(1, len(valid_df) // 10) == 0:
+                    print(f"  ✓ Forecast {idx + 1}/{len(valid_df)} points")
+
+            except Exception as e:
+                print(f"Step {idx}: Forecast error: {type(e).__name__}: {e}")
+                all_forecasts.append(y_valid[idx])
+
+        # Convert to arrays with matching shapes
+        forecasts_arr = np.array(all_forecasts).reshape(-1)
+        y_valid_arr = y_valid.reshape(-1)
+
+        # Validate shapes match
+        if forecasts_arr.shape != y_valid_arr.shape:
+            print(
+                f"Shape mismatch: forecasts={forecasts_arr.shape}, y_valid={y_valid_arr.shape}"
+            )
             return 1.0
 
         # Compute MAPE (same metric as LightGBM for consistency)

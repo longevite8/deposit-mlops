@@ -272,23 +272,25 @@ def compute_validation_loss_neural(
 
         for idx in range(len(valid_df)):
             try:
-                # Predict next step from current history
-                # Create a temporary NeuralForecast with current history
-                nf_temp = NeuralForecast(models=nf.models, freq="D")
-                # Note: We reuse the already-trained model
+                # Predict next step
+                last_date = history["ds"].max()
+                next_date = last_date + pd.Timedelta(days=1)
 
-                pred = nf.predict()
+                # Create prediction frame
+                pred_frame = pd.DataFrame({"ds": [next_date], "unique_id": ["target"]})
+
+                # Make prediction - extract model column
+                pred = nf.predict(pred_frame)
 
                 if pred.empty or len(pred) == 0:
                     print(f"Empty prediction at step {idx}")
                     forecasts.append(y_valid[idx])  # Use actual value as fallback
                 else:
-                    # Extract prediction value
-                    pred_value = float(pred.iloc[0, 0])
+                    # Extract prediction value from correct model column
+                    pred_value = float(pred[model_name].iloc[0])
                     forecasts.append(pred_value)
 
                 # Append actual value to history for next iteration
-                next_date = history["ds"].max() + pd.Timedelta(days=1)
                 new_row = pd.DataFrame(
                     {"ds": [next_date], "y": [y_valid[idx]], "unique_id": ["target"]}
                 )

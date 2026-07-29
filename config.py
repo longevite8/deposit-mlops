@@ -96,7 +96,7 @@ TREND_SLOPE = 1.0  # Trend slope (increase/decrease over time)
 # HPO (Hyperparameter Optimization)
 # =====================================================
 
-N_TRIALS = 50  # Number of Optuna trials
+N_TRIALS = 10  # Number of Optuna trials
 
 # LightGBM hyperparameter search space
 HPO_LEARNING_RATE_MIN = 0.01

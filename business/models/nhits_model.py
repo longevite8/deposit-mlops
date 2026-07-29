@@ -36,7 +36,7 @@ class NHITSConfig(ModelConfig):
     forecast_horizon: int = 1
 
     # Training hyperparameters
-    max_steps: int = 100
+    max_steps: int = 20
 
 
 class NHITSOptimizer(HyperparameterOptimizer):
@@ -119,7 +119,7 @@ class NHITSOptimizer(HyperparameterOptimizer):
         """Return search space description."""
         return {
             "input_size": "[8, 12, 16, 20, 24]",
-            "max_steps": "[50, 200]",
+            "max_steps": "[10, 20]",
             "random_seed": "[1, 10]",
         }
 

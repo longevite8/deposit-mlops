@@ -1,37 +1,33 @@
-from clearml import (
-    Task,
-    OutputModel,
-    Dataset,
-)
-
 from pathlib import Path
 
 import pandas as pd
-
-from config import (
-    PROJECT_TEMPLATE,
-    TEMPLATE_TRAIN_NAME,
-    RANDOM_STATE,
-    FEATURE_COLUMNS,
-    TARGET_COLUMN,
-    SUPPORTED_MODELS,
+from clearml import (
+    Dataset,
+    OutputModel,
+    Task,
 )
 
 # =====================================================
 # Import Model Registry & Generic Training
 # =====================================================
-
 from business.models import (
-    get_trainer_class,
     get_importance_calculator,
     get_model_config_class,
+    get_trainer_class,
 )
 from business.train import (
-    train_model,
     calculate_feature_importance,
     save_model,
+    train_model,
 )
-
+from config import (
+    FEATURE_COLUMNS,
+    PROJECT_TEMPLATE,
+    RANDOM_STATE,
+    SUPPORTED_MODELS,
+    TARGET_COLUMN,
+    TEMPLATE_TRAIN_NAME,
+)
 from helpers import wait_for_artifact
 
 task = Task.init(
@@ -58,7 +54,9 @@ params = task.connect(
 # Template creation mode
 # =====================================================
 
-if not params["feature_task_id"] or (not params["hpo_task_id"] and not params["compare_hpo_task_id"]):
+if not params["feature_task_id"] or (
+    not params["hpo_task_id"] and not params["compare_hpo_task_id"]
+):
     task.get_logger().report_text("Template creation mode.")
     task.close()
     raise SystemExit(0)
@@ -78,7 +76,7 @@ if model_type and model_type in SUPPORTED_MODELS:
 # Priority 2: Model Selection Pipeline - Auto-detect from compare task
 elif params["compare_hpo_task_id"]:
     compare_hpo_task = Task.get_task(task_id=params["compare_hpo_task_id"])
-    
+
     try:
         best_model_type_from_compare = wait_for_artifact(
             compare_hpo_task,
@@ -89,9 +87,11 @@ elif params["compare_hpo_task_id"]:
         )
         model_type = best_model_type_from_compare
         hpo_task_id = params["compare_hpo_task_id"]
-        task.get_logger().report_text(f"✅ Auto-selected from Compare HPO: {model_type}")
+        task.get_logger().report_text(
+            f"✅ Auto-selected from Compare HPO: {model_type}"
+        )
     except Exception as e:
-        task.get_logger().report_text(f"❌ Failed to get best_model_type: {str(e)}")
+        task.get_logger().report_text(f"❌ Failed to get best_model_type: {e!s}")
         task.close()
         raise SystemExit(1)
 
@@ -99,7 +99,9 @@ elif params["compare_hpo_task_id"]:
 elif params["hpo_task_id"]:
     hpo_task_id = params["hpo_task_id"]
     model_type = "lightgbm"  # Default for single HPO (backward compatibility)
-    task.get_logger().report_text(f"📌 Training Pipeline mode: Using default {model_type}")
+    task.get_logger().report_text(
+        f"📌 Training Pipeline mode: Using default {model_type}"
+    )
 
 else:
     task.get_logger().report_text(
@@ -194,7 +196,7 @@ task.get_logger().report_text(f"Best params = {best_params}")
 # Get Model Trainer từ Registry
 # =====================================================
 
-task.get_logger().report_text(f\"📍 Initializing {model_type.upper()} trainer...\")
+task.get_logger().report_text(f"📍 Initializing {model_type.upper()} trainer...")
 
 trainer_class = get_trainer_class(model_type)
 config_class = get_model_config_class(model_type)
@@ -205,7 +207,7 @@ config = config_class(random_state=RANDOM_STATE)
 # Create trainer instance
 trainer = trainer_class(config=config)
 
-task.get_logger().report_text(f\"✅ {model_type.upper()} trainer initialized\")
+task.get_logger().report_text(f"✅ {model_type.upper()} trainer initialized")
 
 
 # =====================================================
@@ -214,7 +216,7 @@ task.get_logger().report_text(f\"✅ {model_type.upper()} trainer initialized\")
 
 train_callbacks = None
 
-if model_type == \"lightgbm\":
+if model_type == "lightgbm":
     import lightgbm as lgb
 
     def log_training_metrics(env):

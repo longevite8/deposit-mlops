@@ -39,14 +39,9 @@ class NHITSConfig(ModelConfig):
     dropout_min: float = 0.0
     dropout_max: float = 0.3
 
-    # Training
+    # Model architecture
     input_size: int = 8
     forecast_horizon: int = 1
-    learning_rate: float = 0.001
-    batch_size: int = 32
-    epochs: int = 100
-    max_steps: int = 1000  # NeuralForecast uses max_steps (not max_epochs)
-    early_stopping_patience: int = 10
 
 
 class NHITSOptimizer(HyperparameterOptimizer):
@@ -113,13 +108,7 @@ class NHITSOptimizer(HyperparameterOptimizer):
 
             # Train NeuralForecast with validation data for early stopping
             nf = NeuralForecast(models=[model], freq="D")
-            nf.fit(
-                self.train_df,
-                val_df=self.valid_df,
-                max_steps=self.config.max_steps,
-                learning_rate=self.config.learning_rate,
-                batch_size=self.config.batch_size,
-            )
+            nf.fit(self.train_df, val_df=self.valid_df)
 
             # Validate
             forecasts = nf.predict(self.valid_df)
@@ -195,12 +184,7 @@ class NHITSTrainer(ModelTrainer):
 
         # Train with NeuralForecast
         self.nf = NeuralForecast(models=[model], freq="D")
-        self.nf.fit(
-            train_df,
-            max_steps=self.config.max_steps,
-            learning_rate=self.config.learning_rate,
-            batch_size=self.config.batch_size,
-        )
+        self.nf.fit(train_df)
 
         self.model = model
         self.feature_names = y_train.name if hasattr(y_train, "name") else ["target"]

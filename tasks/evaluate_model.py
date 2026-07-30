@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import joblib
+import numpy as np
 import pandas as pd
 from clearml import (
     Dataset,
@@ -19,6 +20,15 @@ from config import (
 )
 from helpers import wait_for_artifact
 
+# Import neural models for type checking
+try:
+    from neuralforecast import NeuralForecast
+    from neuralforecast.models import NHITS, NBEATSx
+except ImportError:
+    NHITS = None
+    NBEATSx = None
+    NeuralForecast = None
+
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
     task_name=TEMPLATE_EVALUATE_NAME,
@@ -32,6 +42,7 @@ params = task.connect(
         "train_task_id": "",
         "mape_threshold": MAPE_THRESHOLD,
         "r2_threshold": R2_THRESHOLD,
+        "model_type": "",  # Optional: specify model type (lightgbm, nhits, nbeatsx)
     }
 )
 
@@ -106,12 +117,80 @@ model_path = input_model.get_local_copy()
 
 model = joblib.load(model_path)
 
+# =====================================================
+# Detect Model Type
+# =====================================================
+
+# Try to get model_type from params, train_task, or detect from instance
+model_type = params.get("model_type", "").lower()
+
+if not model_type:
+    # Try to get from train_task artifact
+    try:
+        model_type = wait_for_artifact(
+            train_task, "model_type", max_retries=5, wait_interval=1.0, logger_obj=task
+        )
+        model_type = model_type.lower()
+    except Exception:
+        # Detect from model instance
+        model_class_name = model.__class__.__name__.lower()
+        if "nhits" in model_class_name:
+            model_type = "nhits"
+        elif "nbeatsx" in model_class_name:
+            model_type = "nbeatsx"
+        else:
+            model_type = "lightgbm"
+
+task.get_logger().report_text(f"📊 Model Type Detected: {model_type}")
 
 # =====================================================
-# Predict
+# Predict (Model-Specific)
 # =====================================================
 
-y_pred = model.predict(X_test)
+if model_type in ["nhits", "nbeatsx"]:
+    # Neural models: need NeuralForecast format (ds, y, unique_id)
+    if NeuralForecast is None:
+        raise ImportError(
+            "NeuralForecast not installed. Cannot predict with neural models."
+        )
+
+    task.get_logger().report_text(
+        f"📊 Using NeuralForecast prediction for {model_type.upper()}"
+    )
+
+    # Prepare test data in NeuralForecast format
+    # Create dummy dates and y values
+    test_dates = pd.date_range(start="2020-01-01", periods=len(X_test))
+    pred_df = pd.DataFrame(
+        {
+            "ds": test_dates,
+            "y": np.zeros(len(X_test)),  # Dummy y values (not used for prediction)
+            "unique_id": "target",
+        }
+    )
+
+    # Create NeuralForecast instance and predict
+    nf = NeuralForecast(models=[model], freq="D")
+    forecasts = nf.predict(pred_df)
+
+    # Extract predictions
+    model_col = model_type.upper()
+    if model_col in forecasts.columns:
+        y_pred = forecasts[model_col].values
+    else:
+        # Fallback: get first prediction column
+        pred_cols = [col for col in forecasts.columns if col not in ["ds", "unique_id"]]
+        if pred_cols:
+            y_pred = forecasts[pred_cols[0]].values
+        else:
+            raise ValueError(
+                f"Cannot find prediction column in forecasts. Columns: {forecasts.columns.tolist()}"
+            )
+
+else:
+    # Tree-based models (LightGBM, etc): standard sklearn predict
+    task.get_logger().report_text("📊 Using sklearn-style prediction for LightGBM")
+    y_pred = model.predict(X_test)
 
 # =====================================================
 # BUSINESS LOGIC: Begin
@@ -145,6 +224,7 @@ evaluate_lineage = {
     "feature_task_id": params["feature_task_id"],
     "model_id": model_id,
     "feature_dataset_id": feature_dataset_id,
+    "model_type": model_type,
 }
 
 task.upload_artifact("evaluate_summary", evaluate_summary)

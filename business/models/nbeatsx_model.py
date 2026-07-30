@@ -33,10 +33,15 @@ class NBEATSxConfig(ModelConfig):
 
     # Model architecture
     input_size: int = 8
-    forecast_horizon: int = 1
+    forecast_horizon: int = 1  # Will be overridden by config value
 
     # Training hyperparameters
-    max_steps: int = 20
+    max_steps: int = 100
+
+    def __init__(self, random_state: int = 42, forecast_horizon: int = None, **kwargs):
+        super().__init__(random_state=random_state, **kwargs)
+        if forecast_horizon is not None:
+            self.forecast_horizon = forecast_horizon
 
 
 class NBEATSxOptimizer(HyperparameterOptimizer):

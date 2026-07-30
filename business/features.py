@@ -1,11 +1,13 @@
 """Feature engineering functions for cashflow forecasting."""
 
 import pandas as pd
+
 from config import (
+    DATE_COLUMN,
+    FORECAST_HORIZON,
     LAG_FEATURES,
     ROLLING_FEATURES,
     TARGET_COLUMN,
-    DATE_COLUMN,
 )
 
 
@@ -56,5 +58,42 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     # =====================================================
 
     df = df.dropna().reset_index(drop=True)
+
+    # =====================================================
+    # Create multi-step targets (for multi-target strategy)
+    # =====================================================
+
+    df = create_multistep_targets(df, forecast_horizon=FORECAST_HORIZON)
+
+    return df
+
+
+def create_multistep_targets(
+    df: pd.DataFrame, forecast_horizon: int = 1
+) -> pd.DataFrame:
+    """
+    Create multi-step target columns for tree-based models (LightGBM).
+
+    Multi-target strategy:
+    - For forecast_horizon=7, create y_t+1, y_t+2, ..., y_t+7
+    - Each column represents "number of days ahead" target
+    - Enables LightGBM to predict all horizons in one model
+
+    Args:
+        df: DataFrame with TARGET_COLUMN
+        forecast_horizon: Number of steps ahead to create targets for
+
+    Returns:
+        df: DataFrame with additional target_1, target_2, ..., target_h columns
+    """
+    df = df.copy()
+
+    # Create shifted targets for each step
+    for step in range(1, forecast_horizon + 1):
+        df[f"target_{step}"] = df[TARGET_COLUMN].shift(-step)
+
+    # Drop rows where any target is NaN (rows at the end will have NaN)
+    target_cols = [f"target_{i}" for i in range(1, forecast_horizon + 1)]
+    df = df.dropna(subset=target_cols).reset_index(drop=True)
 
     return df

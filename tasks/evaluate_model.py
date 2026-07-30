@@ -87,6 +87,24 @@ X_test = test_df[FEATURE_COLUMNS]
 
 y_true = test_df[TARGET_COLUMN]
 
+# =====================================================
+# Multi-target ground truth extraction (for multi-target strategy)
+# =====================================================
+
+# Check if multi-step targets exist (created by create_multistep_targets)
+target_cols = [col for col in test_df.columns if col.startswith("target_")]
+if target_cols:
+    # Use target_h (last column = forecast_horizon step) for evaluation
+    y_true = test_df[target_cols[-1]]  # Last target column
+    task.get_logger().report_text(
+        f"✅ Using multi-target ground truth: {target_cols[-1]} (for forecast horizon)"
+    )
+else:
+    # Fallback to single target if multi-targets not available
+    task.get_logger().report_text(
+        "⚠️ No multi-target columns found, using single target"
+    )
+
 
 train_task = Task.get_task(task_id=params["train_task_id"])
 task.get_logger().report_text(

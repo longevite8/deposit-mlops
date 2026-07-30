@@ -3,21 +3,22 @@ HPO NBEATSx - Hyperparameter Optimization cho NBEATSx Model.
 """
 
 from pathlib import Path
+
 import pandas as pd
 from clearml import Dataset, Task
 
+from business.hpo import run_generic_hpo_optimization
+from business.models import get_model_config_class, get_optimizer_class
 from config import (
     FEATURE_COLUMNS,
+    FORECAST_HORIZON,
     N_TRIALS,
     PROJECT_TEMPLATE,
     RANDOM_STATE,
     TARGET_COLUMN,
     TEMPLATE_HPO_NBEATSX_NAME,
 )
-
 from helpers import wait_for_artifact
-from business.models import get_optimizer_class, get_model_config_class
-from business.hpo import run_generic_hpo_optimization
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -91,7 +92,7 @@ task.get_logger().report_text("📍 Starting NBEATSx HPO...")
 optimizer_class = get_optimizer_class("nbeatsx")
 config_class = get_model_config_class("nbeatsx")
 
-config = config_class(random_state=RANDOM_STATE)
+config = config_class(random_state=RANDOM_STATE, forecast_horizon=FORECAST_HORIZON)
 optimizer = optimizer_class(config=config)
 
 study = run_generic_hpo_optimization(

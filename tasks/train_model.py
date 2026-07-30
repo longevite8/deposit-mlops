@@ -22,6 +22,7 @@ from business.train import (
 )
 from config import (
     FEATURE_COLUMNS,
+    FORECAST_HORIZON,
     PROJECT_TEMPLATE,
     RANDOM_STATE,
     SUPPORTED_MODELS,
@@ -176,6 +177,25 @@ X_valid = valid_df[FEATURE_COLUMNS]
 y_valid = valid_df[TARGET_COLUMN]
 
 # =====================================================
+# Multi-target extraction (for LightGBM multi-target strategy)
+# =====================================================
+
+# Check if multi-step targets exist (created by create_multistep_targets)
+target_cols = [col for col in df_train.columns if col.startswith("target_")]
+if target_cols:
+    # Use multi-target columns for LightGBM multi-output training
+    y_train = df_train[target_cols]
+    y_valid = valid_df[target_cols]
+    task.get_logger().report_text(
+        f"✅ Using multi-target strategy with {len(target_cols)} targets: {target_cols}"
+    )
+else:
+    # Fallback to single target if multi-targets not available
+    task.get_logger().report_text(
+        "⚠️ No multi-target columns found, using single target"
+    )
+
+# =====================================================
 # Load best params from HPO
 # =====================================================
 
@@ -201,8 +221,8 @@ task.get_logger().report_text(f"📍 Initializing {model_type.upper()} trainer..
 trainer_class = get_trainer_class(model_type)
 config_class = get_model_config_class(model_type)
 
-# Create config instance
-config = config_class(random_state=RANDOM_STATE)
+# Create config instance with forecast horizon
+config = config_class(random_state=RANDOM_STATE, forecast_horizon=FORECAST_HORIZON)
 
 # Create trainer instance
 trainer = trainer_class(config=config)

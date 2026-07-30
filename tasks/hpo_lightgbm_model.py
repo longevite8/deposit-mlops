@@ -3,21 +3,22 @@ HPO LightGBM - Hyperparameter Optimization cho LightGBM Model.
 """
 
 from pathlib import Path
+
 import pandas as pd
 from clearml import Dataset, Task
 
+from business.hpo import run_generic_hpo_optimization
+from business.models import get_model_config_class, get_optimizer_class
 from config import (
     FEATURE_COLUMNS,
+    FORECAST_HORIZON,
     N_TRIALS,
     PROJECT_TEMPLATE,
     RANDOM_STATE,
     TARGET_COLUMN,
     TEMPLATE_HPO_LIGHTGBM_NAME,
 )
-
 from helpers import wait_for_artifact
-from business.models import get_optimizer_class, get_model_config_class
-from business.hpo import run_generic_hpo_optimization
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -71,6 +72,25 @@ X_valid = valid_df[FEATURE_COLUMNS]
 y_valid = valid_df[TARGET_COLUMN]
 
 # =====================================================
+# Multi-target extraction (for multi-target strategy)
+# =====================================================
+
+# Check if multi-step targets exist (created by create_multistep_targets)
+target_cols = [col for col in train_df.columns if col.startswith("target_")]
+if target_cols:
+    # Use multi-target columns for LightGBM multi-output training
+    y_train = train_df[target_cols]
+    y_valid = valid_df[target_cols]
+    task.get_logger().report_text(
+        f"✅ Using multi-target strategy with {len(target_cols)} targets: {target_cols}"
+    )
+else:
+    # Fallback to single target if multi-targets not available
+    task.get_logger().report_text(
+        "⚠️ No multi-target columns found, using single target"
+    )
+
+# =====================================================
 # Callback
 # =====================================================
 
@@ -91,7 +111,7 @@ task.get_logger().report_text("📍 Starting LightGBM HPO...")
 optimizer_class = get_optimizer_class("lightgbm")
 config_class = get_model_config_class("lightgbm")
 
-config = config_class(random_state=RANDOM_STATE)
+config = config_class(random_state=RANDOM_STATE, forecast_horizon=FORECAST_HORIZON)
 optimizer = optimizer_class(config=config)
 
 study = run_generic_hpo_optimization(

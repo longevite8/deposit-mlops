@@ -33,10 +33,18 @@ class LGBMConfig(ModelConfig):
     max_depth_min: int = 5
     max_depth_max: int = 15
 
+    # Forecast horizon
+    forecast_horizon: int = 1  # Will be overridden by config value
+
     # Training
     early_stopping_rounds: int = 50
     verbose: int = -1
     metric: str = "mape"
+
+    def __init__(self, random_state: int = 42, forecast_horizon: int = None, **kwargs):
+        super().__init__(random_state=random_state, **kwargs)
+        if forecast_horizon is not None:
+            self.forecast_horizon = forecast_horizon
 
 
 class LGBMOptimizer(HyperparameterOptimizer):
@@ -51,6 +59,10 @@ class LGBMOptimizer(HyperparameterOptimizer):
     def objective(self, trial: optuna.Trial) -> float:
         """
         Objective function cho Optuna trial - tối thiểu MAPE.
+
+        Multi-target strategy:
+        - Trains on all target_1, target_2, ..., target_h
+        - Evaluates on target_h (forecast_horizon step)
 
         Args:
             trial: Optuna trial object
@@ -81,13 +93,30 @@ class LGBMOptimizer(HyperparameterOptimizer):
             "verbose": -1,
         }
 
-        # Train model
+        # Train model on all targets
         model = LGBMRegressor(**params)
         model.fit(self.X_train, self.y_train)
 
         # Evaluate on validation set
+        # y_pred shape: (n_samples, n_targets) for multi-output
+        # Extract prediction for target_h (forecast_horizon)
         y_pred = model.predict(self.X_valid)
-        mape = mean_absolute_percentage_error(self.y_valid, y_pred)
+
+        # For multi-target: y_pred has shape (n_samples, forecast_horizon)
+        # Use last column (target_h)
+        if len(y_pred.shape) > 1:
+            y_pred_h = y_pred[:, -1]  # Last column = target_forecast_horizon
+        else:
+            y_pred_h = y_pred  # Single target fallback
+
+        # y_valid is a DataFrame with multiple target columns
+        # Extract target_h for evaluation
+        if isinstance(self.y_valid, pd.DataFrame):
+            y_valid_h = self.y_valid.iloc[:, -1].values  # Last column
+        else:
+            y_valid_h = self.y_valid  # Fallback
+
+        mape = mean_absolute_percentage_error(y_valid_h, y_pred_h)
 
         return mape
 
@@ -118,23 +147,28 @@ class LGBMTrainer(ModelTrainer):
     def train(
         self,
         X_train: pd.DataFrame,
-        y_train: pd.Series,
+        y_train: pd.Series | pd.DataFrame,
         X_valid: pd.DataFrame | None = None,
-        y_valid: pd.Series | None = None,
+        y_valid: pd.Series | pd.DataFrame | None = None,
         best_params: dict | None = None,
         callbacks: list | None = None,
     ) -> LGBMRegressor:
         """
-        Train LightGBM model.
+        Train LightGBM model with multi-target strategy.
+
+        Multi-target approach:
+        - y_train/y_valid: DataFrame with columns target_1, target_2, ..., target_h
+        - Trains on all targets simultaneously
+        - Evaluates on target_h (forecast_horizon)
 
         Args:
-            X_train, y_train: Training data
-            X_valid, y_valid: Validation data
+            X_train, y_train: Training data (y_train can be DataFrame with multiple targets)
+            X_valid, y_valid: Validation data (y_valid can be DataFrame with multiple targets)
             best_params: Dict of best hyperparameters từ HPO
             callbacks: Optional callbacks
 
         Returns:
-            Trained LGBMRegressor model
+            Trained LGBMRegressor model (multi-output)
         """
         if best_params is None:
             best_params = {}
@@ -156,10 +190,15 @@ class LGBMTrainer(ModelTrainer):
         # Create model
         model = LGBMRegressor(**model_params)
 
-        # Prepare eval_set
+        # Prepare eval_set with target_h (forecast_horizon)
         eval_set = None
         if X_valid is not None and y_valid is not None:
-            eval_set = [(X_valid, y_valid)]
+            # Extract target_h for evaluation (last column in multi-target DataFrame)
+            if isinstance(y_valid, pd.DataFrame):
+                y_valid_h = y_valid.iloc[:, -1]  # Last column = target_forecast_horizon
+            else:
+                y_valid_h = y_valid
+            eval_set = [(X_valid, y_valid_h)]
 
         # Train with optional callbacks
         model.fit(
@@ -177,15 +216,29 @@ class LGBMTrainer(ModelTrainer):
         """
         Make predictions.
 
+        Multi-target approach:
+        - Model predicts all targets (target_1, ..., target_h)
+        - Returns only target_h (the forecast_horizon step)
+
         Args:
             X: Input features
 
         Returns:
-            np.ndarray: Predictions
+            np.ndarray: Predictions for target_h (shape: (n_samples,))
         """
         if self.model is None:
             raise ValueError("Model not trained yet. Call train() first.")
-        return self.model.predict(X)
+
+        y_pred = self.model.predict(X)
+
+        # Extract prediction for target_h (last column for multi-output)
+        if len(y_pred.shape) > 1:
+            # Multi-output: shape (n_samples, forecast_horizon)
+            # Return last column (target_h)
+            return y_pred[:, -1]
+        else:
+            # Single output: shape (n_samples,)
+            return y_pred
 
 
 class LGBMImportanceCalculator(FeatureImportanceCalculator):

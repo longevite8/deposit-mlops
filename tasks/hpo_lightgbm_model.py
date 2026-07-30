@@ -2,6 +2,7 @@
 HPO LightGBM - Hyperparameter Optimization cho LightGBM Model.
 """
 
+import math
 from pathlib import Path
 
 import pandas as pd

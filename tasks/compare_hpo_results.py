@@ -19,7 +19,7 @@ task = Task.init(
 params = task.connect(
     {
         "hpo_lightgbm_task_id": "",
-        #"hpo_nbeatsx_task_id": "",
+        "hpo_nbeatsx_task_id": "",
         "hpo_nhits_task_id": "",
     }
 )
@@ -46,8 +46,8 @@ if params["hpo_lightgbm_task_id"]:
     hpo_tasks["lightgbm"] = Task.get_task(task_id=params["hpo_lightgbm_task_id"])
 
 # Optional: nbeatsx & nhits (if provided)
-# if params.get("hpo_nbeatsx_task_id"):
-#     hpo_tasks["nbeatsx"] = Task.get_task(task_id=params["hpo_nbeatsx_task_id"])
+if params.get("hpo_nbeatsx_task_id"):
+    hpo_tasks["nbeatsx"] = Task.get_task(task_id=params["hpo_nbeatsx_task_id"])
 
 if params.get("hpo_nhits_task_id"):
     hpo_tasks["nhits"] = Task.get_task(task_id=params["hpo_nhits_task_id"])

@@ -325,22 +325,24 @@ def compute_validation_loss_neural(
                 # For each validation point, fit model on expanded training set
                 # (train + all previous validation points)
 
-                model_fresh_iter = model_class(
-                    h=1,  # Single-step forecast
-                    input_size=input_size,
-                    max_steps=max_steps,
-                    random_seed=random_seed,
-                    enable_progress_bar=False,
-                )
-
-                # Add stack_types for NBEATSx
+                # Create model with correct parameters based on model type
                 if model_name == "NBEATSx":
+                    # NBEATSx requires stack_types to avoid h=1 conflicts
                     model_fresh_iter = model_class(
-                        h=1,
+                        h=1,  # Single-step forecast
                         input_size=input_size,
                         max_steps=max_steps,
                         random_seed=random_seed,
                         stack_types=stack_types,
+                        enable_progress_bar=False,
+                    )
+                else:
+                    # NHITS and other models don't need stack_types
+                    model_fresh_iter = model_class(
+                        h=1,  # Single-step forecast
+                        input_size=input_size,
+                        max_steps=max_steps,
+                        random_seed=random_seed,
                         enable_progress_bar=False,
                     )
 

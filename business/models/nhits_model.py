@@ -80,10 +80,22 @@ class NHITSOptimizer(HyperparameterOptimizer):
     def objective(self, trial: optuna.Trial) -> float:
         """Objective function cho Optuna - minimize validation loss."""
         try:
-            # Suggest hyperparameters
-            input_size = trial.suggest_categorical("input_size", [8, 12, 16, 20, 24])
-            max_steps = trial.suggest_int("max_steps", 50, 200)
-            random_seed = trial.suggest_int("random_seed", 1, 10)
+            from config import (
+                HPO_INPUT_SIZE_OPTIONS,
+                HPO_MAX_STEPS_MAX,
+                HPO_MAX_STEPS_MIN,
+                HPO_RANDOM_SEED_MAX,
+                HPO_RANDOM_SEED_MIN,
+            )
+
+            # Suggest hyperparameters from config
+            input_size = trial.suggest_categorical("input_size", HPO_INPUT_SIZE_OPTIONS)
+            max_steps = trial.suggest_int(
+                "max_steps", HPO_MAX_STEPS_MIN, HPO_MAX_STEPS_MAX
+            )
+            random_seed = trial.suggest_int(
+                "random_seed", HPO_RANDOM_SEED_MIN, HPO_RANDOM_SEED_MAX
+            )
 
             # Create NHITS model
             model = NHITS(

@@ -96,7 +96,7 @@ TREND_SLOPE = 1.0  # Trend slope (increase/decrease over time)
 # HPO (Hyperparameter Optimization)
 # =====================================================
 
-N_TRIALS = 10  # Number of Optuna trials
+N_TRIALS = 3  # 50  # Number of Optuna trials (adjust as needed)
 
 # LightGBM hyperparameter search space
 HPO_LEARNING_RATE_MIN = 0.01
@@ -111,6 +111,21 @@ HPO_MAX_DEPTH_MAX = 15
 LGBM_VERBOSE = -1
 LGBM_RANDOM_STATE = 42
 LGBM_METRIC = "mape"  # Mean Absolute Percentage Error
+
+# =====================================================
+# Neural Models Hyperparameter Search Space (NHITS, NBEATSx)
+# =====================================================
+
+# max_steps controls training iterations per trial
+HPO_MAX_STEPS_MIN = 10  # 50  # Adjust to 10-30 for faster testing
+HPO_MAX_STEPS_MAX = 30  # 200  # Adjust to 30-50 for faster testing
+
+# input_size: lookback window (consistent across both models)
+HPO_INPUT_SIZE_OPTIONS = [8, 12, 16, 20, 24]
+
+# random_seed: for reproducibility
+HPO_RANDOM_SEED_MIN = 1
+HPO_RANDOM_SEED_MAX = 10
 
 # =====================================================
 # Model Training

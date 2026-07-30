@@ -2,10 +2,12 @@
 HPO NHITS - Hyperparameter Optimization cho NHITS Model.
 """
 
+import math
 from pathlib import Path
 
 import pandas as pd
 from clearml import Dataset, Task
+from optuna.trial import TrialState
 
 from business.hpo import run_generic_hpo_optimization
 from business.models import get_model_config_class, get_optimizer_class
@@ -107,11 +109,28 @@ study = run_generic_hpo_optimization(
 )
 
 # =====================================================
-# BUSINESS LOGIC: End
+# Validate HPO Results
 # =====================================================
+
+completed_trials = [t for t in study.trials if t.state == TrialState.COMPLETE]
+failed_trials = [t for t in study.trials if t.state == TrialState.FAIL]
+
+if not completed_trials:
+    error_msg = (
+        f"❌ NHITS HPO failed: không có trial nào thành công\n"
+        f"   Completed: {len(completed_trials)}\n"
+        f"   Failed: {len(failed_trials)}"
+    )
+    task.get_logger().report_text(error_msg)
+    raise RuntimeError(error_msg)
 
 best_params = study.best_params
 best_score = study.best_value
+
+if best_score is None or not math.isfinite(float(best_score)):
+    error_msg = f"❌ NHITS HPO failed: invalid best_score={best_score}"
+    task.get_logger().report_text(error_msg)
+    raise RuntimeError(error_msg)
 
 # =====================================================
 # Upload Artifacts
@@ -124,6 +143,8 @@ task.upload_artifact("model_type", "nhits")
 task.get_logger().report_single_value("best_score", float(best_score))
 task.get_logger().report_text(
     f"✅ NHITS HPO Completed\n"
+    f"   Completed Trials: {len(completed_trials)}\n"
+    f"   Failed Trials: {len(failed_trials)}\n"
     f"   Best Score: {best_score:.6f}\n"
     f"   Best Params: {best_params}"
 )

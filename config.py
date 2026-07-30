@@ -100,7 +100,7 @@ TREND_SLOPE = 1.0  # Trend slope (increase/decrease over time)
 # - 1: predict 1 day ahead (single-step)
 # - 7: predict 7 days ahead (multi-step)
 # - 14, 30, etc: longer horizons
-FORECAST_HORIZON = 1  # Adjust as needed (1, 7, 14, 30, etc.)
+FORECAST_HORIZON = 7  # Adjust as needed (1, 7, 14, 30, etc.)
 
 # =====================================================
 # HPO (Hyperparameter Optimization)

@@ -177,23 +177,33 @@ X_valid = valid_df[FEATURE_COLUMNS]
 y_valid = valid_df[TARGET_COLUMN]
 
 # =====================================================
-# Multi-target extraction (for LightGBM multi-target strategy)
+# Multi-target extraction (Model-Aware Strategy)
 # =====================================================
 
 # Check if multi-step targets exist (created by create_multistep_targets)
 target_cols = [col for col in df_train.columns if col.startswith("target_")]
-if target_cols:
-    # Use multi-target columns for LightGBM multi-output training
+
+if target_cols and model_type in ["nbeatsx", "nhits"]:
+    # ✅ Neural models HỖTRỢ multi-target (multi-step forecasting)
     y_train = df_train[target_cols]
     y_valid = valid_df[target_cols]
     task.get_logger().report_text(
-        f"✅ Using multi-target strategy with {len(target_cols)} targets: {target_cols}"
+        f"✅ Neural model {model_type.upper()} using multi-target strategy "
+        f"with {len(target_cols)} targets: {target_cols}"
+    )
+elif target_cols and model_type == "lightgbm":
+    # ❌ LightGBM KHÔNG hỗ trợ multi-target → chỉ dùng TARGET_COLUMN (single-step)
+    y_train = df_train[TARGET_COLUMN]
+    y_valid = valid_df[TARGET_COLUMN]
+    task.get_logger().report_text(
+        f"⚠️ LightGBM không hỗ trợ multi-target, "
+        f"chuyển sang single-target strategy: {TARGET_COLUMN}"
     )
 else:
     # Fallback to single target if multi-targets not available
-    task.get_logger().report_text(
-        "⚠️ No multi-target columns found, using single target"
-    )
+    y_train = df_train[TARGET_COLUMN]
+    y_valid = valid_df[TARGET_COLUMN]
+    task.get_logger().report_text(f"✅ Using single-target strategy: {TARGET_COLUMN}")
 
 # =====================================================
 # Load best params from HPO

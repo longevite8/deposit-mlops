@@ -100,13 +100,13 @@ TREND_SLOPE = 1.0  # Trend slope (increase/decrease over time)
 # - 1: predict 1 day ahead (single-step)
 # - 7: predict 7 days ahead (multi-step)
 # - 14, 30, etc: longer horizons
-FORECAST_HORIZON = 7  # Adjust as needed (1, 7, 14, 30, etc.)
+FORECAST_HORIZON = 30  # Adjust as needed (1, 7, 14, 30, etc.)
 
 # =====================================================
 # HPO (Hyperparameter Optimization)
 # =====================================================
 
-N_TRIALS = 3  # 50  # Number of Optuna trials (adjust as needed)
+N_TRIALS = 50  # 50  # Number of Optuna trials (adjust as needed)
 
 # LightGBM hyperparameter search space
 HPO_LEARNING_RATE_MIN = 0.01
@@ -127,8 +127,8 @@ LGBM_METRIC = "mape"  # Mean Absolute Percentage Error
 # =====================================================
 
 # max_steps controls training iterations per trial
-HPO_MAX_STEPS_MIN = 10  # 50  # Adjust to 10-30 for faster testing
-HPO_MAX_STEPS_MAX = 30  # 200  # Adjust to 30-50 for faster testing
+HPO_MAX_STEPS_MIN = 50  # 50  # Adjust to 10-30 for faster testing
+HPO_MAX_STEPS_MAX = 200  # 200  # Adjust to 30-50 for faster testing
 
 # input_size: lookback window (consistent across both models)
 HPO_INPUT_SIZE_OPTIONS = [8, 12, 16, 20, 24]
@@ -228,21 +228,21 @@ TEMPLATE_EXPLAIN_NAME = "Explain Model"
 # Template Task IDs (Populated by register_templates.py)
 # =====================================================
 
-TEMPLATE_EXTRACT_ID = "4ac5446aab3b47ca868395d5a31d00e4"
-TEMPLATE_FEATURE_ID = "9d345485446e43d1beb650659cfd66aa"
-TEMPLATE_VALIDATE_ID = "b5b1d14cf30f4dd9b0bc0a42c9015c1e"
-TEMPLATE_DRIFT_ID = "2af90ca35b404390851bec6ebb664399"
-TEMPLATE_HPO_ID = "bc9e06931b14456da89fb93553472c98"
-TEMPLATE_TRAIN_ID = "8a154929763043038ed38e10bbbb651e"
-TEMPLATE_EVALUATE_ID = "ae04ade589114188994784ef4d54314f"
-TEMPLATE_REGISTER_ID = "dc1974b03c524142ae2b4fe9d5feeaeb"
-TEMPLATE_COMPARE_CHAMPION_ID = "42f8bc87733b414088133a4d5aabdfe5"
-TEMPLATE_PROMOTE_CHAMPION_ID = "191278cec64f4857b955ec35fe85bef7"
-TEMPLATE_INFERENCE_ID = "b55bfd2a252b4131ab8b6a7b06dc9af3"
-TEMPLATE_MONITORING_ID = "808c0feb258f468a94f2bf2d28bd5fb0"
-TEMPLATE_ALERTING_ID = "159583166f644da1b72b72faba849392"
-TEMPLATE_AUTO_RETRAINING_ID = "825984f6de4b4566abba06c76a451aea"
-TEMPLATE_EXPLAIN_ID = "dd466291527443f4b666ce4d06922931"
+TEMPLATE_EXTRACT_ID = "6025071daf994924b0ea4d6be444a68b"
+TEMPLATE_FEATURE_ID = "6c608feb7b724d069d575f097bad1d2a"
+TEMPLATE_VALIDATE_ID = "515f789a1d6f4683ab7c5b40ef1c9318"
+TEMPLATE_DRIFT_ID = "dda5269e7b1842ca87caabc94bce08bd"
+TEMPLATE_HPO_ID = "38c2c06a029f4bb7a10d3e82f3fb6de7"
+TEMPLATE_TRAIN_ID = "d6d38e330a4e40c5be90ddf0ce127cc8"
+TEMPLATE_EVALUATE_ID = "eaeec0af31fb45869938edcb563233fe"
+TEMPLATE_REGISTER_ID = "65b5e590fc18465a88f95b76b53d37f7"
+TEMPLATE_COMPARE_CHAMPION_ID = "93914d78a40047a597aa97291e5a446e"
+TEMPLATE_PROMOTE_CHAMPION_ID = "405fe87acd7f4d74b2443c21f267861d"
+TEMPLATE_INFERENCE_ID = "62d57220736d4f58be0d9e2c2a1a1766"
+TEMPLATE_MONITORING_ID = "3711d72ece7a4b82afd0998c410504b2"
+TEMPLATE_ALERTING_ID = "9baa8750b9964326928ce7d9ef82f666"
+TEMPLATE_AUTO_RETRAINING_ID = "7a34dffb4b814e29b8afb1961d401872"
+TEMPLATE_EXPLAIN_ID = "ef20dcf4b4194a5f95e0f5b5d01d5803"
 
 TRAINING_PIPELINE_ID = "c1d61d3965f942c6a9fc7736eb67c870"
 
@@ -328,10 +328,10 @@ TEMPLATE_COMPARE_HPO_NAME = "Compare HPO Results"
 # Template Task IDs (Model Selection) - Populate after register_templates.py
 # =====================================================
 
-TEMPLATE_HPO_LIGHTGBM_ID = "6cf562eae17341a59dd83b9958194609"
-TEMPLATE_HPO_NBEATSX_ID = "9919efabfdd34ee585eca8187f44668e"
-TEMPLATE_HPO_NHITS_ID = "29b77213c9ee4a23824f957ecd1e76e9"
-TEMPLATE_COMPARE_HPO_ID = "3e6985af115e40a2b6a1a12dc98c37bb"
+TEMPLATE_HPO_LIGHTGBM_ID = "7fa7d635cde446ef91e98a2263fd7ce9"
+TEMPLATE_HPO_NBEATSX_ID = "e3efc8b7ab13491b863e0d6996fea22c"
+TEMPLATE_HPO_NHITS_ID = "236865be1ebc459d9f2e2309520c30ff"
+TEMPLATE_COMPARE_HPO_ID = "d08446e56cee4e228517dbe98e07c5c2"
 
 # =====================================================
 # Utility Functions

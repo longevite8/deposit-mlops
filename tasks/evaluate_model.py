@@ -94,16 +94,24 @@ y_true = test_df[TARGET_COLUMN]
 # Check if multi-step targets exist (created by create_multistep_targets)
 target_cols = [col for col in test_df.columns if col.startswith("target_")]
 if target_cols:
-    # Use target_h (last column = forecast_horizon step) for evaluation
-    y_true = test_df[target_cols[-1]]  # Last target column
+    # Multi-target strategy: Use target_h (last column = forecast_horizon step)
+    forecast_horizon = len(target_cols)
+    y_true = test_df[target_cols[-1]]  # Last target column (target_h)
     task.get_logger().report_text(
-        f"✅ Using multi-target ground truth: {target_cols[-1]} (for forecast horizon)"
+        f"✅ Multi-target strategy detected (FORECAST_HORIZON={forecast_horizon})"
     )
+    task.get_logger().report_text(f"   Targets: {', '.join(target_cols)}")
+    task.get_logger().report_text(
+        f"   Using target_h for evaluation: {target_cols[-1]} (step {forecast_horizon})"
+    )
+    task.get_logger().report_text(f"   Ground truth shape: {y_true.shape}")
 else:
     # Fallback to single target if multi-targets not available
+    forecast_horizon = 1
     task.get_logger().report_text(
-        "⚠️ No multi-target columns found, using single target"
+        "⚠️ No multi-target columns found, using single target (FORECAST_HORIZON=1)"
     )
+    task.get_logger().report_text(f"   Ground truth shape: {y_true.shape}")
 
 
 train_task = Task.get_task(task_id=params["train_task_id"])
@@ -146,24 +154,36 @@ if not model_type:
     # Try to get from train_task artifact
     try:
         model_type = wait_for_artifact(
-            train_task, "model_type", max_retries=5, wait_interval=1.0, logger_obj=task
+            train_task, "model_type", max_retries=3, wait_interval=1.0, logger_obj=task
         )
         model_type = model_type.lower()
-    except Exception:
-        # Detect from model instance
+        task.get_logger().report_text(f"✅ Got model_type from artifact: {model_type}")
+    except Exception as e:
+        # If artifact not found, detect from model instance
+        task.get_logger().report_text(
+            f"⚠️ model_type artifact not found ({e}), detecting from model instance..."
+        )
         model_class_name = model.__class__.__name__.lower()
         if "nhits" in model_class_name:
             model_type = "nhits"
         elif "nbeatsx" in model_class_name:
             model_type = "nbeatsx"
-        else:
+        elif "lgbm" in model_class_name or "lightgbm" in model_class_name:
             model_type = "lightgbm"
+        else:
+            model_type = "lightgbm"  # Default fallback
+        task.get_logger().report_text(
+            f"✅ Detected model_type from instance: {model_type}"
+        )
 
-task.get_logger().report_text(f"📊 Model Type Detected: {model_type}")
+task.get_logger().report_text(f"📊 Model Type: {model_type}")
+task.upload_artifact("model_type", model_type)  # For downstream tasks
 
 # =====================================================
 # Predict (Model-Specific)
 # =====================================================
+
+task.get_logger().report_text(f"🔮 Generating predictions with {model_type.upper()}...")
 
 if model_type in ["nhits", "nbeatsx"]:
     # Neural models: need NeuralForecast format (ds, y, unique_id)
@@ -210,6 +230,47 @@ else:
     task.get_logger().report_text("📊 Using sklearn-style prediction for LightGBM")
     y_pred = model.predict(X_test)
 
+    # Handle multi-output predictions (extract target_h)
+    if len(y_pred.shape) > 1 and y_pred.shape[1] > 1:
+        task.get_logger().report_text(
+            f"📊 Multi-output prediction detected (shape: {y_pred.shape})"
+        )
+        task.get_logger().report_text(f"   Model trained on {y_pred.shape[1]} targets")
+        task.get_logger().report_text(
+            f"   Extracting target_h (column {y_pred.shape[1]})..."
+        )
+        y_pred = y_pred[:, -1]  # Extract last column (target_h)
+        task.get_logger().report_text(
+            f"   Prediction shape after extraction: {y_pred.shape}"
+        )
+    else:
+        task.get_logger().report_text(
+            f"📊 Single-output prediction (shape: {y_pred.shape})"
+        )
+
+# =====================================================
+# Validate shapes before metrics calculation
+# =====================================================
+
+task.get_logger().report_text("🔍 Validating prediction shapes...")
+task.get_logger().report_text(
+    f"   y_true shape: {y_true.shape} | y_pred shape: {y_pred.shape}"
+)
+
+if len(y_true) != len(y_pred):
+    raise ValueError(
+        f"❌ Shape mismatch: y_true ({len(y_true)}) != y_pred ({len(y_pred)}). "
+        f"Cannot calculate metrics."
+    )
+
+if len(y_pred.shape) > 1 and y_pred.shape[1] > 1:
+    raise ValueError(
+        f"❌ y_pred has unexpected multi-dimensional shape: {y_pred.shape}. "
+        f"Expected 1D array after target_h extraction."
+    )
+
+task.get_logger().report_text("✅ Shape validation passed")
+
 # =====================================================
 # BUSINESS LOGIC: Begin
 # =====================================================
@@ -233,6 +294,8 @@ evaluate_summary = {
     "passed": passed,
     "mape_threshold": mape_threshold,
     "r2_threshold": r2_threshold,
+    "forecast_horizon": forecast_horizon,  # Track horizon in summary
+    "num_test_samples": len(y_true),
     **metrics,  # Trộn các metrics (mape, mae, rmse, r2) vào summary
 }
 
@@ -243,6 +306,8 @@ evaluate_lineage = {
     "model_id": model_id,
     "feature_dataset_id": feature_dataset_id,
     "model_type": model_type,
+    "forecast_horizon": forecast_horizon,  # Track which horizon was used
+    "num_test_samples": len(y_true),
 }
 
 task.upload_artifact("evaluate_summary", evaluate_summary)

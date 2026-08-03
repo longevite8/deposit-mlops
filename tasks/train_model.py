@@ -379,6 +379,11 @@ output_model.update_weights(weights_filename="model.pkl")
 task.get_logger().report_text(f"📍 Uploading model_id artifact: {output_model.id}")
 task.upload_artifact("model_id", output_model.id)
 
+# ✅ UPLOAD model_type artifact explicitly
+# This is what the evaluate task will look for
+task.get_logger().report_text(f"📍 Uploading model_type artifact: {model_type}")
+task.upload_artifact("model_type", model_type)
+
 output_model.set_metadata(
     "feature_dataset_id",
     feature_dataset_id,

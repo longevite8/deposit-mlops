@@ -100,13 +100,13 @@ TREND_SLOPE = 1.0  # Trend slope (increase/decrease over time)
 # - 1: predict 1 day ahead (single-step)
 # - 7: predict 7 days ahead (multi-step)
 # - 14, 30, etc: longer horizons
-FORECAST_HORIZON = 30  # Adjust as needed (1, 7, 14, 30, etc.)
+FORECAST_HORIZON = 3  # Adjust as needed (1, 7, 14, 30, etc.)
 
 # =====================================================
 # HPO (Hyperparameter Optimization)
 # =====================================================
 
-N_TRIALS = 50  # 50  # Number of Optuna trials (adjust as needed)
+N_TRIALS = 10  # 50  # Number of Optuna trials (adjust as needed)
 
 # LightGBM hyperparameter search space
 HPO_LEARNING_RATE_MIN = 0.01
@@ -127,8 +127,8 @@ LGBM_METRIC = "mape"  # Mean Absolute Percentage Error
 # =====================================================
 
 # max_steps controls training iterations per trial
-HPO_MAX_STEPS_MIN = 50  # 50  # Adjust to 10-30 for faster testing
-HPO_MAX_STEPS_MAX = 200  # 200  # Adjust to 30-50 for faster testing
+HPO_MAX_STEPS_MIN = 10  # 50  # Adjust to 10-30 for faster testing
+HPO_MAX_STEPS_MAX = 20  # 200  # Adjust to 30-50 for faster testing
 
 # input_size: lookback window (consistent across both models)
 HPO_INPUT_SIZE_OPTIONS = [8, 12, 16, 20, 24]
@@ -213,6 +213,10 @@ TEMPLATE_FEATURE_NAME = "Feature Engineering"
 TEMPLATE_VALIDATE_NAME = "Validate Data"
 TEMPLATE_DRIFT_NAME = "Drift Detection"
 TEMPLATE_HPO_NAME = "HPO Model"
+TEMPLATE_HPO_LIGHTGBM_NAME = "HPO LightGBM"
+TEMPLATE_HPO_NBEATSX_NAME = "HPO NBEATSx"
+TEMPLATE_HPO_NHITS_NAME = "HPO NHITS"
+TEMPLATE_COMPARE_HPO_NAME = "Compare HPO Results"
 TEMPLATE_TRAIN_NAME = "Train Model"
 TEMPLATE_EVALUATE_NAME = "Evaluate Model"
 TEMPLATE_REGISTER_NAME = "Register Model"
@@ -233,6 +237,10 @@ TEMPLATE_FEATURE_ID = "6c608feb7b724d069d575f097bad1d2a"
 TEMPLATE_VALIDATE_ID = "515f789a1d6f4683ab7c5b40ef1c9318"
 TEMPLATE_DRIFT_ID = "dda5269e7b1842ca87caabc94bce08bd"
 TEMPLATE_HPO_ID = "38c2c06a029f4bb7a10d3e82f3fb6de7"
+TEMPLATE_HPO_LIGHTGBM_ID = "7fa7d635cde446ef91e98a2263fd7ce9"
+TEMPLATE_HPO_NBEATSX_ID = "e3efc8b7ab13491b863e0d6996fea22c"
+TEMPLATE_HPO_NHITS_ID = "236865be1ebc459d9f2e2309520c30ff"
+TEMPLATE_COMPARE_HPO_ID = "d08446e56cee4e228517dbe98e07c5c2"
 TEMPLATE_TRAIN_ID = "d6d38e330a4e40c5be90ddf0ce127cc8"
 TEMPLATE_EVALUATE_ID = "eaeec0af31fb45869938edcb563233fe"
 TEMPLATE_REGISTER_ID = "65b5e590fc18465a88f95b76b53d37f7"
@@ -314,24 +322,6 @@ NHITS_HIDDEN_SIZE_MAX = 256
 # =====================================================
 
 NORMALIZATION_METHOD = "standard"  # "standard", "minmax", "robust"
-
-# =====================================================
-# Template Task Names (Model Selection Pipeline)
-# =====================================================
-
-TEMPLATE_HPO_LIGHTGBM_NAME = "HPO LightGBM"
-TEMPLATE_HPO_NBEATSX_NAME = "HPO NBEATSx"
-TEMPLATE_HPO_NHITS_NAME = "HPO NHITS"
-TEMPLATE_COMPARE_HPO_NAME = "Compare HPO Results"
-
-# =====================================================
-# Template Task IDs (Model Selection) - Populate after register_templates.py
-# =====================================================
-
-TEMPLATE_HPO_LIGHTGBM_ID = "7fa7d635cde446ef91e98a2263fd7ce9"
-TEMPLATE_HPO_NBEATSX_ID = "e3efc8b7ab13491b863e0d6996fea22c"
-TEMPLATE_HPO_NHITS_ID = "236865be1ebc459d9f2e2309520c30ff"
-TEMPLATE_COMPARE_HPO_ID = "d08446e56cee4e228517dbe98e07c5c2"
 
 # =====================================================
 # Utility Functions

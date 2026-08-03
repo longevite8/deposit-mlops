@@ -10,16 +10,21 @@ from config import (
     CLEARML_SERVER_URL,
     CPU_QUEUE,
     DEPLOYMENT_VERSION,
+    N_SHAP_SAMPLES,
     PROJECT_PIPELINE,
     SERVICES_QUEUE,
+    TEMPLATE_COMPARE_CHAMPION_ID,
     TEMPLATE_COMPARE_HPO_ID,
     TEMPLATE_DRIFT_ID,
     TEMPLATE_EVALUATE_ID,
+    TEMPLATE_EXPLAIN_ID,
     TEMPLATE_EXTRACT_ID,
     TEMPLATE_FEATURE_ID,
     TEMPLATE_HPO_LIGHTGBM_ID,
     TEMPLATE_HPO_NBEATSX_ID,
     TEMPLATE_HPO_NHITS_ID,
+    TEMPLATE_PROMOTE_CHAMPION_ID,
+    TEMPLATE_REGISTER_ID,
     TEMPLATE_TRAIN_ID,
     TEMPLATE_VALIDATE_ID,
 )
@@ -146,7 +151,7 @@ pipe.add_step(
         "General/compare_hpo_task_id": "${compare_hpo.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=False,
+    cache_executed_step=True,
 )
 
 # =====================================================
@@ -162,12 +167,81 @@ pipe.add_step(
         "General/train_task_id": "${train.id}",
     },
     execution_queue=CPU_QUEUE,
-    cache_executed_step=False,  # ← Changed (model type varies)
+    cache_executed_step=True,
     monitor_metrics=[
         ("MAPE", "mape"),
         ("R2", "r2"),
     ],
 )
+
+# =====================================================
+# Step 9: Register
+# =====================================================
+
+pipe.add_step(
+    name="register",
+    parents=["evaluate"],
+    base_task_id=TEMPLATE_REGISTER_ID,
+    parameter_override={
+        "General/train_task_id": "${train.id}",
+        "General/evaluate_task_id": "${evaluate.id}",
+    },
+    execution_queue=CPU_QUEUE,
+    cache_executed_step=True,
+)
+
+# =====================================================
+# Step 10: Explainability (SHAP Analysis)
+# =====================================================
+
+pipe.add_step(
+    name="explain_model",
+    parents=["register"],
+    base_task_id=TEMPLATE_EXPLAIN_ID,
+    parameter_override={
+        "General/feature_task_id": "${feature.id}",
+        "General/train_task_id": "${train.id}",
+        "General/n_samples": N_SHAP_SAMPLES,
+    },
+    execution_queue=CPU_QUEUE,
+    cache_executed_step=True,
+)
+
+# =====================================================
+# Step 11: Compare Champion
+# =====================================================
+
+pipe.add_step(
+    name="compare_champion",
+    parents=["register"],
+    base_task_id=TEMPLATE_COMPARE_CHAMPION_ID,
+    parameter_override={
+        "General/register_task_id": "${register.id}",
+    },
+    execution_queue=CPU_QUEUE,
+    cache_executed_step=True,
+)
+
+# =====================================================
+# Step 12: Promote Champion
+# =====================================================
+
+pipe.add_step(
+    name="promote_champion",
+    parents=["compare_champion"],
+    base_task_id=TEMPLATE_PROMOTE_CHAMPION_ID,
+    parameter_override={
+        "General/compare_task_id": "${compare_champion.id}",
+    },
+    execution_queue=CPU_QUEUE,
+    cache_executed_step=True,
+)
+
+# =====================================================
+# Flush trước khi start
+# =====================================================
+
+pipe.task.flush()
 
 print("=" * 70)
 print("📌 Starting Model Selection Pipeline...")
@@ -180,8 +254,15 @@ pipeline_id = pipe.task.id
 print("=" * 70)
 print("✅ Model Selection Pipeline started")
 print("=" * 70)
-print(f"   Pipeline ID: {pipeline_id}")
+print(f"   Task ID: {pipeline_id}")
+print("   Pipeline Name: Model Selection Pipeline")
+print(f"   Version: {DEPLOYMENT_VERSION}")
+print(f"   Timestamp: {timestamp}")
 print(f"   UI URL: {CLEARML_SERVER_URL}/tasks/{pipeline_id}")
 print("=" * 70)
+
+# =====================================================
+# Final flush để đảm bảo final state được lưu
+# =====================================================
 
 pipe.task.flush()

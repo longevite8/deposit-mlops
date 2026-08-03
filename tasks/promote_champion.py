@@ -1,15 +1,15 @@
-from clearml.backend_api.session.client import APIClient
 from datetime import datetime
+
 from clearml import (
-    Task,
     Model,
+    Task,
 )
+from clearml.backend_api.session.client import APIClient
 
 from config import (
     PROJECT_TEMPLATE,
     TEMPLATE_PROMOTE_CHAMPION_NAME,
 )
-
 from helpers import wait_for_artifact  # THÊM: Import từ helper
 
 task = Task.init(
@@ -209,7 +209,7 @@ promote_lineage = {
     "register_task_id": compare_lineage["register_task_id"],
     "train_task_id": compare_lineage["train_task_id"],
     "evaluate_task_id": compare_lineage["evaluate_task_id"],
-    "hpo_task_id": compare_lineage["hpo_task_id"],
+    "compare_hpo_task_id": compare_lineage["compare_hpo_task_id"],
     "feature_dataset_id": compare_lineage["feature_dataset_id"],
     "champion_model_id": new_model_id,
 }

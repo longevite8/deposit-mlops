@@ -1,15 +1,14 @@
 from clearml import (
-    Task,
     Model,
+    Task,
 )
 
+from business.compare_model import compare_model_performance
 from config import (
     PROJECT_TEMPLATE,
     TEMPLATE_COMPARE_CHAMPION_NAME,
 )
-
 from helpers import wait_for_artifact
-from business.compare_model import compare_model_performance
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -68,7 +67,7 @@ compare_lineage = {
     "register_task_id": params["register_task_id"],
     "train_task_id": register_lineage["train_task_id"],
     "evaluate_task_id": register_lineage["evaluate_task_id"],
-    "hpo_task_id": register_lineage["hpo_task_id"],
+    "compare_hpo_task_id": register_lineage["compare_hpo_task_id"],
     "feature_dataset_id": register_lineage["feature_dataset_id"],
     "candidate_model_id": candidate_model_id,
 }

@@ -145,9 +145,22 @@ if best_score is None or not math.isfinite(float(best_score)):
 # Upload Artifacts
 # =====================================================
 
-task.upload_artifact("best_params", best_params)
-task.upload_artifact("best_score", best_score)
-task.upload_artifact("model_type", "lightgbm")
+hpo_lightgbm_summary = {
+    "best_params": best_params,
+    "best_score": best_score,
+    "model_type": "lightgbm",
+    "n_completed_trials": len(completed_trials),
+    "n_failed_trials": len(failed_trials),
+}
+
+hpo_lightgbm_lineage = {
+    "hpo_lightgbm_task_id": task.id,
+    "feature_task_id": params["feature_task_id"],
+    "feature_dataset_id": feature_lineage["feature_dataset_id"],
+}
+
+task.upload_artifact("hpo_lightgbm_summary", hpo_lightgbm_summary)
+task.upload_artifact("hpo_lightgbm_lineage", hpo_lightgbm_lineage)
 
 task.get_logger().report_single_value("best_score", float(best_score))
 task.get_logger().report_text(

@@ -28,13 +28,17 @@ params = task.connect(
 # Template creation mode
 # =====================================================
 
-if not params["hpo_lightgbm_task_id"]:
+if (
+    not params["hpo_lightgbm_task_id"]
+    or not params["hpo_nbeatsx_task_id"]
+    or not params["hpo_nhits_task_id"]
+):
     task.get_logger().report_text("Template creation mode.")
     task.close()
     raise SystemExit(0)
 
 # =====================================================
-# Load Results từ HPO Tasks (support both single & multi-model)
+# Load Results từ HPO Tasks
 # =====================================================
 
 task.get_logger().report_text("📍 Loading HPO results from available models...")
@@ -130,35 +134,29 @@ for model_type, result in hpo_results.items():
 
 task.get_logger().report_text("=" * 70)
 
-# Find best model from valid models only
-best_model_type = None
-best_score = float("inf")
-
+# Find best model
 if valid_models:
-    for model_type, result in valid_models.items():
-        score = result.get("best_score", float("inf"))
-        if score < best_score:
-            best_score = score
-            best_model_type = model_type
-
+    best_model_type, best_result = min(
+        valid_models.items(), key=lambda x: x[1].get("best_score", float("inf"))
+    )
+    best_score = best_result.get("best_score", float("inf"))
     task.get_logger().report_text(
         f"🏆 WINNER: {best_model_type.upper()}\n   Best Score: {best_score:.6f}"
     )
 else:
-    task.get_logger().report_text(
-        "⚠️  NO VALID MODELS! All models have Infinity score (HPO failed for all)."
-    )
-    task.get_logger().report_text("   Please check the HPO logs for these models:")
-    for model_type in failed_models:
-        hpo_task_id = failed_models[model_type].get("hpo_task_id", "N/A")
+    # No valid models - fail the task
+    error_msg = "NO VALID MODELS! All models have Infinity score (HPO failed for all)."
+    task.get_logger().report_text(f"⚠️  {error_msg}")
+    task.get_logger().report_text("   Failed models:")
+    for model_type, result in failed_models.items():
+        hpo_task_id = result.get("hpo_task_id", "N/A")
         task.get_logger().report_text(f"   - {model_type.upper()}: {hpo_task_id}")
-    # Default to lightgbm if it exists in results
-    if "lightgbm" in hpo_results:
-        best_model_type = "lightgbm"
-        task.get_logger().report_text(f"   Defaulting to: {best_model_type.upper()}")
-    else:
-        # Fallback to first model
-        best_model_type = list(hpo_results.keys())[0] if hpo_results else None
+
+    task.get_logger().report_text(
+        "❌ Cannot proceed with model selection. Please fix HPO tasks."
+    )
+    task.close(status="failed")
+    raise SystemExit(1)
 
 task.get_logger().report_text("=" * 70)
 
@@ -170,11 +168,22 @@ task.get_logger().report_text("=" * 70)
 # Upload Results
 # =====================================================
 
-task.upload_artifact("best_model_type", best_model_type)
-task.upload_artifact(
-    "best_score", float(best_score) if best_score != float("inf") else best_score
-)
-task.upload_artifact("all_results", hpo_results)
+compare_hpo_summary = {
+    "best_model_type": best_model_type,
+    "best_score": float(best_score) if best_score != float("inf") else best_score,
+    "n_models_compared": len(hpo_tasks),
+    "all_results": hpo_results,
+}
+
+compare_hpo_lineage = {
+    "compare_hpo_task_id": task.id,
+    "hpo_lightgbm_task_id": params["hpo_lightgbm_task_id"],
+    "hpo_nbeatsx_task_id": params.get("hpo_nbeatsx_task_id"),
+    "hpo_nhits_task_id": params.get("hpo_nhits_task_id"),
+}
+
+task.upload_artifact("compare_hpo_summary", compare_hpo_summary)
+task.upload_artifact("compare_hpo_lineage", compare_hpo_lineage)
 
 # Upload best_params only if model is valid
 if best_model_type and best_model_type in valid_models:

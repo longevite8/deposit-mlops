@@ -136,9 +136,22 @@ if best_score is None or not math.isfinite(float(best_score)):
 # Upload Artifacts
 # =====================================================
 
-task.upload_artifact("best_params", best_params)
-task.upload_artifact("best_score", best_score)
-task.upload_artifact("model_type", "nhits")
+hpo_nhits_summary = {
+    "best_params": best_params,
+    "best_score": best_score,
+    "model_type": "nhits",
+    "n_completed_trials": len(completed_trials),
+    "n_failed_trials": len(failed_trials),
+}
+
+hpo_nhits_lineage = {
+    "hpo_nhits_task_id": task.id,
+    "feature_task_id": params["feature_task_id"],
+    "feature_dataset_id": feature_lineage["feature_dataset_id"],
+}
+
+task.upload_artifact("hpo_nhits_summary", hpo_nhits_summary)
+task.upload_artifact("hpo_nhits_lineage", hpo_nhits_lineage)
 
 task.get_logger().report_single_value("best_score", float(best_score))
 task.get_logger().report_text(

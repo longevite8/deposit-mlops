@@ -8,8 +8,7 @@ from config import (
     PROJECT_TEMPLATE,
     TEMPLATE_REGISTER_NAME,
 )
-
-from helpers import wait_for_artifact, wait_for_metadata  # THÊM: Import từ helper
+from helpers import wait_for_artifact, wait_for_metadata
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -88,9 +87,36 @@ feature_dataset_id = wait_for_metadata(
 # Load lineage information
 # =====================================================
 
-train_params = train_task.get_parameters()
+task.get_logger().report_text("📍 Loading hpo_task_id from train task...")
 
-hpo_task_id = train_params.get("General/hpo_task_id")
+# Try to get hpo_task_id from train task artifacts (preferred)
+try:
+    hpo_task_id = wait_for_artifact(
+        train_task,
+        "hpo_task_id",
+        max_retries=5,
+        wait_interval=1.0,
+        logger_obj=task,
+    )
+    task.get_logger().report_text(f"✅ Got hpo_task_id from artifact: {hpo_task_id}")
+except Exception as e:
+    # Fallback: Try to get from parameters
+    task.get_logger().report_text(
+        f"⚠️ hpo_task_id artifact not found ({e}), checking parameters..."
+    )
+    train_params = train_task.get_parameters()
+    hpo_task_id = train_params.get("General/hpo_task_id") or train_params.get(
+        "General/compare_hpo_task_id"
+    )
+    if hpo_task_id:
+        task.get_logger().report_text(
+            f"✅ Got hpo_task_id from parameters: {hpo_task_id}"
+        )
+    else:
+        task.get_logger().report_text(
+            "⚠️ hpo_task_id not found in artifact or parameters"
+        )
+        hpo_task_id = None
 
 # =====================================================
 # Publish model
@@ -121,8 +147,8 @@ if published:
     # =====================================================
 
     registered_model.set_metadata(
-        "hpo_task_id",
-        str(hpo_task_id),
+        "compare_hpo_task_id",
+        str(compare_hpo_task_id) if compare_hpo_task_id else "unknown",
     )
 
     registered_model.set_metadata(
@@ -188,10 +214,17 @@ register_lineage = {
     "register_task_id": task.id,
     "train_task_id": train_task.id,
     "evaluate_task_id": evaluate_task.id,
-    "hpo_task_id": hpo_task_id,
+    "compare_hpo_task_id": compare_hpo_task_id,  # Có thể None, nhưng vẫn track
     "model_id": model_id,
     "feature_dataset_id": feature_dataset_id,
 }
+
+# ✅ Upload compare_hpo_task_id artifact for downstream tasks
+if compare_hpo_task_id:
+    task.upload_artifact("compare_hpo_task_id", compare_hpo_task_id)
+    task.get_logger().report_text(
+        f"📍 Uploaded compare_hpo_task_id: {compare_hpo_task_id}"
+    )
 
 task.upload_artifact(
     "register_summary",

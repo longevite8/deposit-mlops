@@ -45,9 +45,7 @@ task = Task.init(
 params = task.connect(
     {
         "feature_task_id": "",
-        "hpo_task_id": "",  # Training Pipeline (single model)
-        "compare_hpo_task_id": "",  # Model Selection Pipeline
-        "model_type": "",  # Optional explicit model type
+        "compare_hpo_task_id": "",
     }
 )
 
@@ -55,61 +53,30 @@ params = task.connect(
 # Template creation mode
 # =====================================================
 
-if not params["feature_task_id"] or (
-    not params["hpo_task_id"] and not params["compare_hpo_task_id"]
-):
+if not params["feature_task_id"] or not params["compare_hpo_task_id"]:
     task.get_logger().report_text("Template creation mode.")
     task.close()
     raise SystemExit(0)
 
 # =====================================================
-# Determine model_type & hpo_task
+# Determine model_type & compare_hpo task
 # =====================================================
 
-model_type = params.get("model_type", "").strip()  # Optional explicit param
-best_model_type_from_compare = None
+compare_hpo_task = Task.get_task(task_id=params["compare_hpo_task_id"])
+compare_hpo_summary = wait_for_artifact(
+    compare_hpo_task,
+    "compare_hpo_summary",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+model_type = compare_hpo_summary["best_model_type"]
+compare_hpo_task_id = params["compare_hpo_task_id"]
+task.get_logger().report_text(
+    f"✅ Auto-selected from Compare HPO: {model_type} "
+    f"(score: {compare_hpo_summary['best_score']:.6f})"
+)
 
-# Priority 1: Explicit model_type parameter
-if model_type and model_type in SUPPORTED_MODELS:
-    task.get_logger().report_text(f"📌 Using explicit model_type: {model_type}")
-    hpo_task_id = params["compare_hpo_task_id"] or params["hpo_task_id"]
-
-# Priority 2: Model Selection Pipeline - Auto-detect from compare task
-elif params["compare_hpo_task_id"]:
-    compare_hpo_task = Task.get_task(task_id=params["compare_hpo_task_id"])
-
-    try:
-        best_model_type_from_compare = wait_for_artifact(
-            compare_hpo_task,
-            "best_model_type",
-            max_retries=10,
-            wait_interval=2.0,
-            logger_obj=task,
-        )
-        model_type = best_model_type_from_compare
-        hpo_task_id = params["compare_hpo_task_id"]
-        task.get_logger().report_text(
-            f"✅ Auto-selected from Compare HPO: {model_type}"
-        )
-    except Exception as e:
-        task.get_logger().report_text(f"❌ Failed to get best_model_type: {e!s}")
-        task.close()
-        raise SystemExit(1)
-
-# Priority 3: Training Pipeline - Use single HPO task
-elif params["hpo_task_id"]:
-    hpo_task_id = params["hpo_task_id"]
-    model_type = "lightgbm"  # Default for single HPO (backward compatibility)
-    task.get_logger().report_text(
-        f"📌 Training Pipeline mode: Using default {model_type}"
-    )
-
-else:
-    task.get_logger().report_text(
-        "❌ No valid hpo_task_id or compare_hpo_task_id provided"
-    )
-    task.close()
-    raise SystemExit(1)
 
 # Validate model_type
 if model_type not in SUPPORTED_MODELS:
@@ -209,10 +176,10 @@ else:
 # Load best params from HPO
 # =====================================================
 
-hpo_task = Task.get_task(task_id=hpo_task_id)
+compare_hpo_task = Task.get_task(task_id=compare_hpo_task_id)
 
 best_params = wait_for_artifact(
-    hpo_task,
+    compare_hpo_task,
     "best_params",
     max_retries=10,
     wait_interval=2.0,
@@ -421,11 +388,6 @@ output_model.set_metadata(
     raw_dataset_id,
 )
 
-# Clean up redundant upload (đã đưa lên trên)
-# task.upload_artifact(
-#     "model_id",
-#     output_model.id,
-# )
 
 task.upload_artifact(
     "feature_dataset_id",
@@ -437,42 +399,37 @@ task.upload_artifact(
     raw_dataset_id,
 )
 
+# ✅ UPLOAD compare_hpo_task_id artifacts for downstream tasks
+task.get_logger().report_text("📍 Uploading compare_hpo_task_id artifacts...")
+task.upload_artifact("compare_hpo_task_id", params["compare_hpo_task_id"])
+task.get_logger().report_text(
+    f"   compare_hpo_task_id: {params['compare_hpo_task_id']}"
+)
+
 
 # =====================================================
-# Training info
+# Training Summary & Lineage
 # =====================================================
 
-training_info = {
+training_summary = {
     "model_id": output_model.id,
     "model_type": model_type,
-    "feature_dataset_id": feature_dataset_id,
-    "raw_dataset_id": raw_dataset_id,
     "best_params": best_params,
     "n_rows": len(df_train),
     "n_features": len(FEATURE_COLUMNS),
     "feature_columns": FEATURE_COLUMNS,
 }
 
-task.upload_artifact(
-    "training_info",
-    training_info,
-)
-
-model_card = {
-    "algorithm": model_type.upper(),
-    "feature_columns": FEATURE_COLUMNS,
-    "target_column": TARGET_COLUMN,
-    "best_params": best_params,
-    "n_rows": len(df_train),
-    "n_features": len(FEATURE_COLUMNS),
+training_lineage = {
+    "train_task_id": task.id,
+    "feature_task_id": params["feature_task_id"],
     "feature_dataset_id": feature_dataset_id,
+    "compare_hpo_task_id": params["compare_hpo_task_id"],
     "raw_dataset_id": raw_dataset_id,
 }
 
-task.upload_artifact(
-    "model_card",
-    model_card,
-)
+task.upload_artifact("training_summary", training_summary)
+task.upload_artifact("training_lineage", training_lineage)
 
 
 # =====================================================

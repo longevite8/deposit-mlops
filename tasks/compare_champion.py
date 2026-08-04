@@ -65,10 +65,10 @@ candidate_model_id = register_summary.get("model_id")
 compare_lineage = {
     "compare_task_id": task.id,
     "register_task_id": params["register_task_id"],
-    "train_task_id": register_lineage["train_task_id"],
-    "evaluate_task_id": register_lineage["evaluate_task_id"],
-    "compare_hpo_task_id": register_lineage["compare_hpo_task_id"],
-    "feature_dataset_id": register_lineage["feature_dataset_id"],
+    "train_task_id": register_lineage.get("train_task_id"),
+    "evaluate_task_id": register_lineage.get("evaluate_task_id"),
+    "compare_hpo_task_id": register_lineage.get("compare_hpo_task_id"),
+    "feature_dataset_id": register_lineage.get("feature_dataset_id"),
     "candidate_model_id": candidate_model_id,
 }
 
@@ -84,9 +84,8 @@ if not register_summary.get("published", False):
         "reason": "Candidate not published",
     }
     task.upload_artifact("compare_summary", compare_summary)
-    task.upload_artifact(
-        "compare_lineage", compare_lineage
-    )  # Fix KeyError cho task sau
+    task.upload_artifact("compare_lineage", compare_lineage)
+    task.flush()
     task.close()
     raise SystemExit(0)
 
@@ -122,6 +121,7 @@ if len(champion_models) == 0:
     task.upload_artifact("compare_summary", compare_summary)
     task.upload_artifact("compare_lineage", compare_lineage)
     task.get_logger().report_text("✅ First champion promoted.")
+    task.flush()
     task.close()
     raise SystemExit(0)
 

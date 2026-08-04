@@ -173,18 +173,17 @@ else:
     task.get_logger().report_text(f"✅ Using single-target strategy: {TARGET_COLUMN}")
 
 # =====================================================
-# Load best params from HPO
+# Get best params from HPO
 # =====================================================
 
-compare_hpo_task = Task.get_task(task_id=compare_hpo_task_id)
+best_params = compare_hpo_summary.get("best_params")
 
-best_params = wait_for_artifact(
-    compare_hpo_task,
-    "best_params",
-    max_retries=10,
-    wait_interval=2.0,
-    logger_obj=task,
-)
+if not isinstance(best_params, dict) or not best_params:
+    task.get_logger().report_text(
+        f"❌ Missing best_params for selected model: {model_type}"
+    )
+    task.close(status="failed")
+    raise SystemExit(1)
 
 task.get_logger().report_text(f"Best params = {best_params}")
 

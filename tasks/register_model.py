@@ -83,40 +83,29 @@ feature_dataset_id = wait_for_metadata(
     logger_obj=task,
 )
 
+
 # =====================================================
 # Load lineage information
 # =====================================================
 
 task.get_logger().report_text("📍 Loading hpo_task_id from train task...")
 
-# Try to get hpo_task_id from train task artifacts (preferred)
-try:
-    hpo_task_id = wait_for_artifact(
-        train_task,
-        "hpo_task_id",
-        max_retries=5,
-        wait_interval=1.0,
-        logger_obj=task,
-    )
-    task.get_logger().report_text(f"✅ Got hpo_task_id from artifact: {hpo_task_id}")
-except Exception as e:
-    # Fallback: Try to get from parameters
-    task.get_logger().report_text(
-        f"⚠️ hpo_task_id artifact not found ({e}), checking parameters..."
-    )
-    train_params = train_task.get_parameters()
-    hpo_task_id = train_params.get("General/hpo_task_id") or train_params.get(
-        "General/compare_hpo_task_id"
-    )
-    if hpo_task_id:
-        task.get_logger().report_text(
-            f"✅ Got hpo_task_id from parameters: {hpo_task_id}"
-        )
-    else:
-        task.get_logger().report_text(
-            "⚠️ hpo_task_id not found in artifact or parameters"
-        )
-        hpo_task_id = None
+training_lineage = wait_for_artifact(
+    train_task,
+    "training_lineage",
+    max_retries=10,
+    wait_interval=2.0,
+    logger_obj=task,
+)
+
+compare_hpo_task_id = training_lineage.get("compare_hpo_task_id")
+
+if not compare_hpo_task_id:
+    task.get_logger().report_text("❌ Missing compare_hpo_task_id in training_lineage")
+    task.close(status="failed")
+    raise SystemExit(1)
+
+task.get_logger().report_text(f"✅ Got compare_hpo_task_id: {compare_hpo_task_id}")
 
 # =====================================================
 # Publish model
@@ -148,7 +137,7 @@ if published:
 
     registered_model.set_metadata(
         "compare_hpo_task_id",
-        str(compare_hpo_task_id) if compare_hpo_task_id else "unknown",
+        str(compare_hpo_task_id),
     )
 
     registered_model.set_metadata(
@@ -214,7 +203,7 @@ register_lineage = {
     "register_task_id": task.id,
     "train_task_id": train_task.id,
     "evaluate_task_id": evaluate_task.id,
-    "compare_hpo_task_id": compare_hpo_task_id,  # Có thể None, nhưng vẫn track
+    "compare_hpo_task_id": compare_hpo_task_id,
     "model_id": model_id,
     "feature_dataset_id": feature_dataset_id,
 }

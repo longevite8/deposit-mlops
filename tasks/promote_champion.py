@@ -68,9 +68,6 @@ if not candidate_win:
     task.close()
     raise SystemExit(0)
 
-compare_lineage = compare_task.artifacts["compare_lineage"].get()
-candidate_win = compare_summary["candidate_win"]
-
 # =====================================================
 # Nothing to promote
 # =====================================================

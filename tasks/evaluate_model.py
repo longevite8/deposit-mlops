@@ -128,14 +128,13 @@ try:
         wait_interval=3.0,
         logger_obj=task,
     )
-except Exception as e:
-    # Log chi tiết các artifacts hiện có để debug
+except ValueError as exc:
     available_artifacts = list(train_task.artifacts.keys())
-    task.get_logger().report_text(f"❌ Error getting model_id: {e!s}")
+    task.get_logger().report_text(f"❌ Error getting model_id: {exc!s}")
     task.get_logger().report_text(
         f"📍 Available artifacts in train task: {available_artifacts}"
     )
-    raise e
+    raise
 
 input_model = InputModel(model_id=model_id)
 
@@ -147,37 +146,35 @@ model = joblib.load(model_path)
 # Detect Model Type
 # =====================================================
 
-# Try to get model_type from params, train_task, or detect from instance
-model_type = params.get("model_type", "").lower()
+model_type = params.get("model_type", "").strip().lower()
 
 if not model_type:
-    # Try to get from train_task artifact
     try:
-        model_type = wait_for_artifact(
-            train_task, "model_type", max_retries=3, wait_interval=1.0, logger_obj=task
+        training_summary = wait_for_artifact(
+            train_task,
+            "training_summary",
+            max_retries=10,
+            wait_interval=2.0,
+            logger_obj=task,
         )
-        model_type = model_type.lower()
-        task.get_logger().report_text(f"✅ Got model_type from artifact: {model_type}")
-    except Exception as e:
-        # If artifact not found, detect from model instance
+        model_type = str(training_summary["model_type"]).lower()
         task.get_logger().report_text(
-            f"⚠️ model_type artifact not found ({e}), detecting from model instance..."
+            f"✅ Got model_type from training_summary: {model_type}"
         )
-        model_class_name = model.__class__.__name__.lower()
-        if "nhits" in model_class_name:
-            model_type = "nhits"
-        elif "nbeatsx" in model_class_name:
-            model_type = "nbeatsx"
-        elif "lgbm" in model_class_name or "lightgbm" in model_class_name:
-            model_type = "lightgbm"
-        else:
-            model_type = "lightgbm"  # Default fallback
+    except (KeyError, ValueError) as exc:
         task.get_logger().report_text(
-            f"✅ Detected model_type from instance: {model_type}"
+            f"❌ Failed to load model_type from training_summary: {exc!s}"
         )
+        task.close(status="failed")
+        raise
+
+if model_type not in ["lightgbm", "nhits", "nbeatsx"]:
+    task.get_logger().report_text(f"❌ Unsupported model_type: {model_type}")
+    task.close(status="failed")
+    raise SystemExit(1)
 
 task.get_logger().report_text(f"📊 Model Type: {model_type}")
-task.upload_artifact("model_type", model_type)  # For downstream tasks
+task.upload_artifact("model_type", model_type)
 
 # =====================================================
 # Predict (Model-Specific)

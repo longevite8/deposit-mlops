@@ -231,7 +231,7 @@ pipe.add_step(
     parents=["compare_champion"],
     base_task_id=TEMPLATE_PROMOTE_CHAMPION_ID,
     parameter_override={
-        "General/compare_task_id": "${compare_champion.id}",
+        "General/compare_champion_task_id": "${compare_champion.id}",
     },
     execution_queue=CPU_QUEUE,
     cache_executed_step=True,

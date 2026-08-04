@@ -8,7 +8,7 @@ from config import (
     PROJECT_TEMPLATE,
     TEMPLATE_REGISTER_NAME,
 )
-from helpers import wait_for_artifact, wait_for_metadata
+from helpers import wait_for_artifact
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -62,33 +62,13 @@ train_task = Task.get_task(
     task_id=params["train_task_id"],
 )
 
-model_id = wait_for_artifact(
+training_summary = wait_for_artifact(
     train_task,
-    "model_id",
+    "training_summary",
     max_retries=10,
     wait_interval=2.0,
     logger_obj=task,
 )
-
-registered_model = Model(model_id=model_id)
-
-metadata = registered_model.get_all_metadata()
-
-# Dùng wait_for_metadata để chắc chắn metadata sẵn sàng
-feature_dataset_id = wait_for_metadata(
-    metadata,
-    "feature_dataset_id",
-    max_retries=10,
-    wait_interval=2.0,
-    logger_obj=task,
-)
-
-
-# =====================================================
-# Load lineage information
-# =====================================================
-
-task.get_logger().report_text("📍 Loading hpo_task_id from train task...")
 
 training_lineage = wait_for_artifact(
     train_task,
@@ -98,14 +78,20 @@ training_lineage = wait_for_artifact(
     logger_obj=task,
 )
 
-compare_hpo_task_id = training_lineage.get("compare_hpo_task_id")
+model_id = training_summary["model_id"]
+feature_dataset_id = training_lineage["feature_dataset_id"]
+compare_hpo_task_id = training_lineage["compare_hpo_task_id"]
 
-if not compare_hpo_task_id:
-    task.get_logger().report_text("❌ Missing compare_hpo_task_id in training_lineage")
-    task.close(status="failed")
-    raise SystemExit(1)
+registered_model = Model(model_id=model_id)
 
-task.get_logger().report_text(f"✅ Got compare_hpo_task_id: {compare_hpo_task_id}")
+task.get_logger().report_text(f"✅ Loaded model_id from training_summary: {model_id}")
+task.get_logger().report_text(
+    f"✅ Loaded feature_dataset_id from training_lineage: {feature_dataset_id}"
+)
+task.get_logger().report_text(
+    f"✅ Loaded compare_hpo_task_id from training_lineage: {compare_hpo_task_id}"
+)
+
 
 # =====================================================
 # Publish model
@@ -171,9 +157,7 @@ if published:
 
     register_summary = {
         "published": True,
-        "model_id": registered_model.id,
-        "train_task_id": train_task.id,
-        "feature_dataset_id": feature_dataset_id,
+        "quality_gate_passed": True,
         "mape": mape,
         "r2": r2,
     }
@@ -188,9 +172,7 @@ if published:
 else:
     register_summary = {
         "published": False,
-        "model_id": None,
-        "train_task_id": None,
-        "feature_dataset_id": feature_dataset_id,
+        "quality_gate_passed": False,
         "mape": evaluate_summary["mape"],
         "r2": evaluate_summary["r2"],
     }
@@ -208,12 +190,6 @@ register_lineage = {
     "feature_dataset_id": feature_dataset_id,
 }
 
-# ✅ Upload compare_hpo_task_id artifact for downstream tasks
-if compare_hpo_task_id:
-    task.upload_artifact("compare_hpo_task_id", compare_hpo_task_id)
-    task.get_logger().report_text(
-        f"📍 Uploaded compare_hpo_task_id: {compare_hpo_task_id}"
-    )
 
 task.upload_artifact(
     "register_summary",

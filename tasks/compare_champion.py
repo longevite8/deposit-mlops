@@ -60,10 +60,10 @@ register_lineage = wait_for_artifact(
     logger_obj=task,
 )
 
-candidate_model_id = register_summary.get("model_id")
+candidate_model_id = register_lineage.get("model_id")
 
 compare_lineage = {
-    "compare_task_id": task.id,
+    "compare_champion_task_id": task.id,
     "register_task_id": params["register_task_id"],
     "train_task_id": register_lineage.get("train_task_id"),
     "evaluate_task_id": register_lineage.get("evaluate_task_id"),
@@ -80,11 +80,13 @@ if not register_summary.get("published", False):
     compare_summary = {
         "candidate_exists": False,
         "candidate_win": False,
-        "status": "FAIL",
+        "status": "SKIPPED",
         "reason": "Candidate not published",
     }
+
     task.upload_artifact("compare_summary", compare_summary)
     task.upload_artifact("compare_lineage", compare_lineage)
+
     task.flush()
     task.close()
     raise SystemExit(0)

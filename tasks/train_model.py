@@ -281,13 +281,6 @@ if importance_calculator_class is not None:
         feature_names=FEATURE_COLUMNS,
     )
 
-    task.get_logger().report_text("✅ Feature importance calculated")
-
-    # Upload artifacts
-    task.upload_artifact("split_importance", split_importance)
-    if gain_importance is not None:
-        task.upload_artifact("gain_importance", gain_importance)
-
     # Report feature importance to UI
     task.get_logger().report_table(
         title="Feature Importance (Primary)",
@@ -340,15 +333,10 @@ output_model = OutputModel(
 
 output_model.update_weights(weights_filename="model.pkl")
 
-# ✅ UPLOAD model_id artifact explicitly
-# This is what the evaluate task will look for
-task.get_logger().report_text(f"📍 Uploading model_id artifact: {output_model.id}")
-task.upload_artifact("model_id", output_model.id)
-
-# ✅ UPLOAD model_type artifact explicitly
-# This is what the evaluate task will look for
-task.get_logger().report_text(f"📍 Uploading model_type artifact: {model_type}")
-task.upload_artifact("model_type", model_type)
+# Log
+task.get_logger().report_text(f"📍 model_id: {output_model.id}")
+task.get_logger().report_text(f"📍 model_type: {model_type}")
+task.get_logger().report_text(f"   compare_hpo_task_id: {compare_hpo_task_id}")
 
 output_model.set_metadata(
     "feature_dataset_id",
@@ -387,25 +375,6 @@ output_model.set_metadata(
     raw_dataset_id,
 )
 
-
-task.upload_artifact(
-    "feature_dataset_id",
-    feature_dataset_id,
-)
-
-task.upload_artifact(
-    "raw_dataset_id",
-    raw_dataset_id,
-)
-
-# ✅ UPLOAD compare_hpo_task_id artifacts for downstream tasks
-task.get_logger().report_text("📍 Uploading compare_hpo_task_id artifacts...")
-task.upload_artifact("compare_hpo_task_id", params["compare_hpo_task_id"])
-task.get_logger().report_text(
-    f"   compare_hpo_task_id: {params['compare_hpo_task_id']}"
-)
-
-
 # =====================================================
 # Training Summary & Lineage
 # =====================================================
@@ -417,15 +386,18 @@ training_summary = {
     "n_rows": len(df_train),
     "n_features": len(FEATURE_COLUMNS),
     "feature_columns": FEATURE_COLUMNS,
+    "split_importance": split_importance,
+    "gain_importance": gain_importance,
 }
 
 training_lineage = {
     "train_task_id": task.id,
     "feature_task_id": params["feature_task_id"],
     "feature_dataset_id": feature_dataset_id,
-    "compare_hpo_task_id": params["compare_hpo_task_id"],
+    "compare_hpo_task_id": compare_hpo_task_id,
     "raw_dataset_id": raw_dataset_id,
 }
+
 
 task.upload_artifact("training_summary", training_summary)
 task.upload_artifact("training_lineage", training_lineage)

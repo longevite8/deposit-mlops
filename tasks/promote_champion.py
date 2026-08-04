@@ -24,14 +24,15 @@ task = Task.init(
 
 params = task.connect(
     {
-        "compare_task_id": "",
+        "compare_champion_task_id": "",
     }
 )
+
 # =====================================================
 # Template mode
 # =====================================================
 
-if not params["compare_task_id"]:
+if not params["compare_champion_task_id"]:
     task.close()
 
     raise SystemExit(0)
@@ -40,7 +41,7 @@ if not params["compare_task_id"]:
 # Load register result
 # =====================================================
 
-compare_task = Task.get_task(task_id=params["compare_task_id"])
+compare_task = Task.get_task(task_id=params["compare_champion_task_id"])
 
 # Dùng wait_for_artifact để chắc chắn artifact sẵn sàng
 compare_summary = wait_for_artifact(
@@ -61,22 +62,39 @@ compare_lineage = wait_for_artifact(
 
 candidate_win = compare_summary.get("candidate_win", False)
 
-if not candidate_win:
-    task.get_logger().report_text(
-        "Candidate model did not win or does not exist. Skipping promotion."
-    )
-    task.close()
-    raise SystemExit(0)
-
 # =====================================================
 # Nothing to promote
 # =====================================================
 
 if not candidate_win:
-    task.get_logger().report_text("No new candidate model.")
-    task.close()
+    promote_summary = {
+        "promoted": False,
+        "status": "SKIPPED",
+        "champion_model_id": None,
+        "previous_champion_model_id": None,
+        "reason": "Candidate did not win or was not published",
+    }
 
+    promote_lineage = {
+        "promote_task_id": task.id,
+        "compare_champion_task_id": compare_lineage.get("compare_champion_task_id"),
+        "register_task_id": compare_lineage.get("register_task_id"),
+        "train_task_id": compare_lineage.get("train_task_id"),
+        "evaluate_task_id": compare_lineage.get("evaluate_task_id"),
+        "compare_hpo_task_id": compare_lineage.get("compare_hpo_task_id"),
+        "feature_dataset_id": compare_lineage.get("feature_dataset_id"),
+        "champion_model_id": None,
+    }
+
+    task.upload_artifact("promote_summary", promote_summary)
+    task.upload_artifact("promote_lineage", promote_lineage)
+
+    task.get_logger().report_text("Candidate model did not win. Promotion skipped.")
+
+    task.flush()
+    task.close()
     raise SystemExit(0)
+
 
 # =====================================================
 # Old champion
@@ -188,8 +206,8 @@ new_model.set_metadata(
 )
 
 new_model.set_metadata(
-    "compare_task_id",
-    compare_lineage["compare_task_id"],
+    "compare_champion_task_id",
+    compare_lineage["compare_champion_task_id"],
 )
 
 promote_summary = {
@@ -202,7 +220,7 @@ promote_summary = {
 
 promote_lineage = {
     "promote_task_id": task.id,
-    "compare_task_id": compare_lineage["compare_task_id"],
+    "compare_champion_task_id": compare_lineage["compare_champion_task_id"],
     "register_task_id": compare_lineage["register_task_id"],
     "train_task_id": compare_lineage["train_task_id"],
     "evaluate_task_id": compare_lineage["evaluate_task_id"],

@@ -61,18 +61,33 @@ mape_threshold: float = float(params["mape_threshold"])
 r2_threshold: float = float(params["r2_threshold"])
 
 
-feature_task = Task.get_task(
-    task_id=params["feature_task_id"],
+train_task = Task.get_task(
+    task_id=params["train_task_id"],
 )
 
-# Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
-feature_dataset_id = wait_for_artifact(
-    feature_task,
-    "feature_dataset_id",
-    max_retries=10,
-    wait_interval=2.0,
+task.get_logger().report_text(
+    f"📍 Evaluating model from Train Task ID: {params['train_task_id']}"
+)
+
+training_summary = wait_for_artifact(
+    train_task,
+    "training_summary",
+    max_retries=15,
+    wait_interval=3.0,
     logger_obj=task,
 )
+
+training_lineage = wait_for_artifact(
+    train_task,
+    "training_lineage",
+    max_retries=15,
+    wait_interval=3.0,
+    logger_obj=task,
+)
+
+model_id = training_summary["model_id"]
+model_type = str(training_summary["model_type"]).strip().lower()
+feature_dataset_id = training_lineage["feature_dataset_id"]
 
 feature_dataset = Dataset.get(
     dataset_id=feature_dataset_id,
@@ -119,54 +134,12 @@ task.get_logger().report_text(
     f"📍 Evaluating model from Train Task ID: {params['train_task_id']}"
 )
 
-# ✅ Dùng wait_for_artifact để đảm bảo model_id đã được upload hoàn tất
-try:
-    model_id = wait_for_artifact(
-        train_task,
-        "model_id",
-        max_retries=15,  # Tăng số lần thử
-        wait_interval=3.0,
-        logger_obj=task,
-    )
-except ValueError as exc:
-    available_artifacts = list(train_task.artifacts.keys())
-    task.get_logger().report_text(f"❌ Error getting model_id: {exc!s}")
-    task.get_logger().report_text(
-        f"📍 Available artifacts in train task: {available_artifacts}"
-    )
-    raise
-
 input_model = InputModel(model_id=model_id)
 
 model_path = input_model.get_local_copy()
 
 model = joblib.load(model_path)
 
-# =====================================================
-# Detect Model Type
-# =====================================================
-
-model_type = params.get("model_type", "").strip().lower()
-
-if not model_type:
-    try:
-        training_summary = wait_for_artifact(
-            train_task,
-            "training_summary",
-            max_retries=10,
-            wait_interval=2.0,
-            logger_obj=task,
-        )
-        model_type = str(training_summary["model_type"]).lower()
-        task.get_logger().report_text(
-            f"✅ Got model_type from training_summary: {model_type}"
-        )
-    except (KeyError, ValueError) as exc:
-        task.get_logger().report_text(
-            f"❌ Failed to load model_type from training_summary: {exc!s}"
-        )
-        task.close(status="failed")
-        raise
 
 if model_type not in ["lightgbm", "nhits", "nbeatsx"]:
     task.get_logger().report_text(f"❌ Unsupported model_type: {model_type}")
@@ -174,7 +147,6 @@ if model_type not in ["lightgbm", "nhits", "nbeatsx"]:
     raise SystemExit(1)
 
 task.get_logger().report_text(f"📊 Model Type: {model_type}")
-task.upload_artifact("model_type", model_type)
 
 # =====================================================
 # Predict (Model-Specific)
@@ -287,13 +259,13 @@ passed = check_quality_gate(metrics, mape_threshold, r2_threshold)
 # =====================================================
 
 evaluate_summary = {
-    "feature_dataset_id": feature_dataset_id,
     "passed": passed,
     "mape_threshold": mape_threshold,
     "r2_threshold": r2_threshold,
-    "forecast_horizon": forecast_horizon,  # Track horizon in summary
+    "forecast_horizon": forecast_horizon,
+    "model_type": model_type,
     "num_test_samples": len(y_true),
-    **metrics,  # Trộn các metrics (mape, mae, rmse, r2) vào summary
+    **metrics,
 }
 
 evaluate_lineage = {
@@ -302,9 +274,6 @@ evaluate_lineage = {
     "feature_task_id": params["feature_task_id"],
     "model_id": model_id,
     "feature_dataset_id": feature_dataset_id,
-    "model_type": model_type,
-    "forecast_horizon": forecast_horizon,  # Track which horizon was used
-    "num_test_samples": len(y_true),
 }
 
 task.upload_artifact("evaluate_summary", evaluate_summary)

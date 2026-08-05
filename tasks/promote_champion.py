@@ -1,4 +1,5 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from clearml import (
     Model,
@@ -133,7 +134,7 @@ if old_models:
 
     old_model.set_metadata(
         "archived_time",
-        str(datetime.now()),
+        str(datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))),
     )
 
     old_model.set_metadata(
@@ -167,7 +168,7 @@ client.models.edit(
 
 new_model.set_metadata(
     "promoted_time",
-    str(datetime.now()),
+    str(datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))),
 )
 
 new_model.set_metadata(
@@ -215,7 +216,7 @@ promote_summary = {
     "status": "SUCCESS",
     "champion_model_id": new_model_id,
     "previous_champion_model_id": previous_champion_model_id,
-    "promotion_time": str(datetime.now()),
+    "promotion_time": str(datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))),
 }
 
 promote_lineage = {

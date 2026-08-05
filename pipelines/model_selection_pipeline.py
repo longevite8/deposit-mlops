@@ -3,6 +3,7 @@ Model Selection Pipeline - HPO 3 models song song, so sánh, chọn best.
 """
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from clearml.automation import PipelineController
 
@@ -29,7 +30,7 @@ from config import (
     TEMPLATE_VALIDATE_ID,
 )
 
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+timestamp = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%Y%m%d_%H%M%S")
 pipe = PipelineController(
     project=PROJECT_PIPELINE,
     name="Model Selection Pipeline",

@@ -1,15 +1,16 @@
-from clearml import Task
-from datetime import datetime
 import time
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from clearml import Task
 
 from config import (
+    CLEARML_SERVER_URL,
     PROJECT_TEMPLATE,
     SERVICES_QUEUE,
     TEMPLATE_AUTO_RETRAINING_NAME,
     TRAINING_PIPELINE_ID,
-    CLEARML_SERVER_URL,
 )
-
 from helpers import wait_for_artifact
 
 # =====================================================
@@ -76,7 +77,7 @@ task.get_logger().report_text(
     f"🚀 Triggering Auto-Retraining. Reason: {alert_summary.get('reason')}"
 )
 
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+timestamp = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh")).strftime("%Y%m%d_%H%M%S")
 
 # Clone Training Pipeline template
 pipeline_template = Task.get_task(task_id=TRAINING_PIPELINE_ID)
@@ -152,7 +153,7 @@ try:
     )
 except Exception as e:
     task.get_logger().report_text(
-        f"⚠️ Could not verify tags from server: {str(e)}", level="warning"
+        f"⚠️ Could not verify tags from server: {e!s}", level="warning"
     )
 
 # =====================================================
@@ -218,7 +219,7 @@ while elapsed_time < max_wait_time:
 
     except Exception as e:
         task.get_logger().report_text(
-            f"⚠️ Could not fetch pipeline status: {str(e)}", level="warning"
+            f"⚠️ Could not fetch pipeline status: {e!s}", level="warning"
         )
         time.sleep(wait_interval)
         elapsed_time += wait_interval

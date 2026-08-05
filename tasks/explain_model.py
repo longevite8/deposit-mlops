@@ -2,25 +2,20 @@
 Model Explainability Task — Sử dụng SHAP để phân tích đóng góp của features.
 """
 
-import shap
+from pathlib import Path
+
 import joblib
 import numpy as np
 import pandas as pd
-from pathlib import Path
-
-from clearml import (
-    Task,
-    InputModel,
-    Dataset,
-)
+import shap
+from clearml import Dataset, InputModel, Task
 
 from config import (
-    PROJECT_TEMPLATE,
-    TEMPLATE_EXPLAIN_NAME,
     FEATURE_COLUMNS,
     N_SHAP_SAMPLES,
+    PROJECT_TEMPLATE,
+    TEMPLATE_EXPLAIN_NAME,
 )
-
 from helpers import wait_for_artifact
 
 task = Task.init(
@@ -54,27 +49,62 @@ if not params["feature_task_id"] or not params["train_task_id"]:
 
 
 # =====================================================
-# Load feature dataset
+# Load train lineage and summary
 # =====================================================
 
-task.get_logger().report_text("Loading feature dataset...")
+task.get_logger().report_text("Loading training artifacts...")
 
-feature_task = Task.get_task(task_id=params["feature_task_id"])
+train_task = Task.get_task(
+    task_id=params["train_task_id"],
+)
 
-# SỬA: Dùng wait_for_artifact để chắc chắn dataset ID sẵn sàng
-feature_dataset_id = wait_for_artifact(
-    feature_task,
-    "feature_dataset_id",
-    max_retries=10,
-    wait_interval=2.0,
+training_summary = wait_for_artifact(
+    train_task,
+    "training_summary",
+    max_retries=15,
+    wait_interval=3.0,
     logger_obj=task,
 )
 
-feature_dataset = Dataset.get(dataset_id=feature_dataset_id)
+training_lineage = wait_for_artifact(
+    train_task,
+    "training_lineage",
+    max_retries=15,
+    wait_interval=3.0,
+    logger_obj=task,
+)
+
+model_id = training_summary.get("model_id")
+feature_dataset_id = training_lineage.get("feature_dataset_id")
+
+if not model_id:
+    task.get_logger().report_text("❌ training_summary does not contain model_id")
+    task.close(status="failed")
+    raise SystemExit(1)
+
+if not feature_dataset_id:
+    task.get_logger().report_text(
+        "❌ training_lineage does not contain feature_dataset_id"
+    )
+    task.close(status="failed")
+    raise SystemExit(1)
+
+task.get_logger().report_text(f"✅ Loaded model_id from training_summary: {model_id}")
+task.get_logger().report_text(
+    f"✅ Loaded feature_dataset_id from training_lineage: {feature_dataset_id}"
+)
+
+
+# =====================================================
+# Load feature dataset
+# =====================================================
+
+feature_dataset = Dataset.get(
+    dataset_id=feature_dataset_id,
+)
 
 local_path = Path(feature_dataset.get_local_copy())
 
-# Load training data để lấy mẫu cho SHAP
 train_df = pd.read_parquet(local_path / "train.parquet")
 X_train = train_df[FEATURE_COLUMNS]
 
@@ -84,17 +114,6 @@ X_train = train_df[FEATURE_COLUMNS]
 # =====================================================
 
 task.get_logger().report_text("Loading trained model...")
-
-train_task = Task.get_task(task_id=params["train_task_id"])
-
-# Dùng wait_for_artifact để chắc chắn model ID sẵn sàng
-model_id = wait_for_artifact(
-    train_task,
-    "model_id",
-    max_retries=10,
-    wait_interval=2.0,
-    logger_obj=task,
-)
 
 input_model = InputModel(model_id=model_id)
 model_path = input_model.get_local_copy()

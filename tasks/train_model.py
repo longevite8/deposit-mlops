@@ -143,34 +143,8 @@ X_valid = valid_df[FEATURE_COLUMNS]
 
 y_valid = valid_df[TARGET_COLUMN]
 
-# =====================================================
-# Multi-target extraction (Model-Aware Strategy)
-# =====================================================
-
-# Check if multi-step targets exist (created by create_multistep_targets)
-target_cols = [col for col in df_train.columns if col.startswith("target_")]
-
-if target_cols and model_type in ["nbeatsx", "nhits"]:
-    # ✅ Neural models HỖTRỢ multi-target (multi-step forecasting)
-    y_train = df_train[target_cols]
-    y_valid = valid_df[target_cols]
-    task.get_logger().report_text(
-        f"✅ Neural model {model_type.upper()} using multi-target strategy "
-        f"with {len(target_cols)} targets: {target_cols}"
-    )
-elif target_cols and model_type == "lightgbm":
-    # ❌ LightGBM KHÔNG hỗ trợ multi-target → chỉ dùng TARGET_COLUMN (single-step)
-    y_train = df_train[TARGET_COLUMN]
-    y_valid = valid_df[TARGET_COLUMN]
-    task.get_logger().report_text(
-        f"⚠️ LightGBM không hỗ trợ multi-target, "
-        f"chuyển sang single-target strategy: {TARGET_COLUMN}"
-    )
-else:
-    # Fallback to single target if multi-targets not available
-    y_train = df_train[TARGET_COLUMN]
-    y_valid = valid_df[TARGET_COLUMN]
-    task.get_logger().report_text(f"✅ Using single-target strategy: {TARGET_COLUMN}")
+y_train = df_train[TARGET_COLUMN]
+y_valid = valid_df[TARGET_COLUMN]
 
 # =====================================================
 # Get best params from HPO
@@ -317,8 +291,21 @@ else:
 # =====================================================
 # Save Model
 # =====================================================
+if model_type in ["nbeatsx", "nhits"]:
+    model_artifact = {
+        "model_type": model_type,
+        "forecast_horizon": FORECAST_HORIZON,
+        "neural_forecast": trainer.nf,
+        "scaler_y": trainer.scaler_y,
+    }
+else:
+    model_artifact = {
+        "model_type": model_type,
+        "forecast_horizon": FORECAST_HORIZON,
+        "model": model,
+    }
 
-model_path = save_model(model, "model.pkl")
+model_path = save_model(model_artifact, "model.pkl")
 task.get_logger().report_text(f"✅ Model saved to {model_path}")
 
 
@@ -383,6 +370,7 @@ training_summary = {
     "model_id": output_model.id,
     "model_type": model_type,
     "best_params": best_params,
+    "forecast_horizon": FORECAST_HORIZON,
     "n_rows": len(df_train),
     "n_features": len(FEATURE_COLUMNS),
     "feature_columns": FEATURE_COLUMNS,

@@ -167,64 +167,104 @@ class NBEATSxTrainer(ModelTrainer):
 
         from business.models.utils import normalize_data
 
-        # Normalize data
-        y_train_norm, self.scaler_y = normalize_data(y_train.values.reshape(-1, 1))
+        if not isinstance(y_train, pd.Series):
+            raise TypeError(
+                "NBEATSx requires y_train to be a pandas Series "
+                "containing the original target column."
+            )
 
-        # Prepare dataframe for NeuralForecast
-        train_dates = pd.date_range(start="2020-01-01", periods=len(y_train_norm))
-        train_df = pd.DataFrame(
-            {"ds": train_dates, "y": y_train_norm.flatten(), "unique_id": "target"}
+        if y_train.empty:
+            raise ValueError("NBEATSx cannot be trained with an empty target series.")
+
+        # Normalize the original target series.
+        y_train_norm, self.scaler_y = normalize_data(y_train.to_numpy().reshape(-1, 1))
+
+        # NeuralForecast expects: unique_id, ds, y.
+        train_dates = pd.date_range(
+            start="2020-01-01",
+            periods=len(y_train_norm),
+            freq="D",
         )
 
-        # Create NBEATSx model with best hyperparameters from HPO
+        train_df = pd.DataFrame(
+            {
+                "unique_id": "target",
+                "ds": train_dates,
+                "y": y_train_norm.ravel(),
+            }
+        )
+
         model = NBEATSx(
             h=self.config.forecast_horizon,
-            input_size=best_params.get("input_size", self.config.input_size),
-            max_steps=best_params.get("max_steps", self.config.max_steps),
-            random_seed=best_params.get("random_seed", self.config.random_state),
+            input_size=best_params.get(
+                "input_size",
+                self.config.input_size,
+            ),
+            max_steps=best_params.get(
+                "max_steps",
+                self.config.max_steps,
+            ),
+            random_seed=best_params.get(
+                "random_seed",
+                self.config.random_state,
+            ),
             stack_types=["identity"],
             enable_progress_bar=False,
         )
 
-        # Train with NeuralForecast
-        self.nf = NeuralForecast(models=[model], freq="D")
+        self.nf = NeuralForecast(
+            models=[model],
+            freq="D",
+        )
+
         self.nf.fit(train_df)
 
         self.model = model
-        self.feature_names = y_train.name if hasattr(y_train, "name") else ["target"]
-        return model
+        self.feature_names = [y_train.name or "target"]
 
-    def predict(self, X: pd.DataFrame) -> np.ndarray:
-        """Make predictions."""
+        return self.nf
+
+    def predict(self) -> np.ndarray:
+        """Forecast the next configured horizon."""
         if self.nf is None:
             raise ValueError("Model not trained yet. Call train() first.")
 
+        if self.scaler_y is None:
+            raise ValueError("Target scaler is not available.")
+
         from business.models.utils import inverse_normalize
 
-        # Create dataframe for prediction
-        # NeuralForecast needs ds and unique_id
-        pred_dates = pd.date_range(start="2020-01-01", periods=len(X))
-        pred_df = pd.DataFrame({"ds": pred_dates, "unique_id": "target"})
+        forecasts = self.nf.predict()
 
-        # Predict
-        forecasts = self.nf.predict(pred_df)
-
-        # Extract NBEATSx predictions (handle different output formats)
         if "NBEATSx" in forecasts.columns:
-            y_pred = forecasts["NBEATSx"].values
+            prediction_column = "NBEATSx"
         else:
-            # Fallback: get first non-index column that's not ds or unique_id
-            pred_cols = [
-                col for col in forecasts.columns if col not in ["ds", "unique_id"]
+            prediction_columns = [
+                column
+                for column in forecasts.columns
+                if column not in ["unique_id", "ds"]
             ]
-            if pred_cols:
-                y_pred = forecasts[pred_cols[0]].values
-            else:
+
+            if not prediction_columns:
                 raise ValueError(
-                    f"Cannot find prediction column in forecasts. Columns: {forecasts.columns.tolist()}"
+                    "Cannot find NBEATSx prediction column. "
+                    f"Available columns: {forecasts.columns.tolist()}"
                 )
 
-        # Inverse normalize
-        y_pred = inverse_normalize(y_pred.reshape(-1, 1), self.scaler_y).flatten()
+            prediction_column = prediction_columns[0]
+
+        y_pred_normalized = forecasts[prediction_column].to_numpy()
+
+        y_pred = inverse_normalize(
+            y_pred_normalized.reshape(-1, 1),
+            self.scaler_y,
+        ).ravel()
+
+        expected_horizon = self.config.forecast_horizon
+
+        if len(y_pred) != expected_horizon:
+            raise ValueError(
+                f"Expected {expected_horizon} forecasts, but received {len(y_pred)}."
+            )
 
         return y_pred

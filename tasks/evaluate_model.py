@@ -20,15 +20,6 @@ from config import (
 )
 from helpers import wait_for_artifact
 
-# Import neural models for type checking
-try:
-    from neuralforecast import NeuralForecast
-    from neuralforecast.models import NHITS, NBEATSx
-except ImportError:
-    NHITS = None
-    NBEATSx = None
-    NeuralForecast = None
-
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
     task_name=TEMPLATE_EVALUATE_NAME,
@@ -138,7 +129,33 @@ input_model = InputModel(model_id=model_id)
 
 model_path = input_model.get_local_copy()
 
-model = joblib.load(model_path)
+model_artifact = joblib.load(model_path)
+
+if not isinstance(model_artifact, dict):
+    raise TypeError(
+        "Expected the trained model artifact to be a dict bundle, "
+        f"but received {type(model_artifact).__name__}."
+    )
+
+artifact_model_type = str(model_artifact.get("model_type", "")).strip().lower()
+
+if artifact_model_type and artifact_model_type != model_type:
+    raise ValueError(
+        f"Model type mismatch: training_summary says "
+        f"'{model_type}', but model artifact says "
+        f"'{artifact_model_type}'."
+    )
+
+forecast_horizon = int(
+    model_artifact.get(
+        "forecast_horizon",
+        forecast_horizon,
+    )
+)
+
+task.get_logger().report_text(
+    f"📦 Loaded model artifact: type={artifact_model_type}, horizon={forecast_horizon}"
+)
 
 
 if model_type not in ["lightgbm", "nhits", "nbeatsx"]:
@@ -155,49 +172,81 @@ task.get_logger().report_text(f"📊 Model Type: {model_type}")
 task.get_logger().report_text(f"🔮 Generating predictions with {model_type.upper()}...")
 
 if model_type in ["nhits", "nbeatsx"]:
-    # Neural models: need NeuralForecast format (ds, y, unique_id)
-    if NeuralForecast is None:
-        raise ImportError(
-            "NeuralForecast not installed. Cannot predict with neural models."
+    task.get_logger().report_text(
+        f"📊 Using fitted NeuralForecast for {model_type.upper()}"
+    )
+
+    nf = model_artifact.get("neural_forecast")
+    scaler_y = model_artifact.get("scaler_y")
+
+    if nf is None:
+        raise ValueError(
+            "The neural model artifact does not contain 'neural_forecast'."
         )
 
-    task.get_logger().report_text(
-        f"📊 Using NeuralForecast prediction for {model_type.upper()}"
-    )
+    if scaler_y is None:
+        raise ValueError("The neural model artifact does not contain 'scaler_y'.")
 
-    # Prepare test data in NeuralForecast format
-    # Create dummy dates and y values
-    test_dates = pd.date_range(start="2020-01-01", periods=len(X_test))
-    pred_df = pd.DataFrame(
-        {
-            "ds": test_dates,
-            "y": np.zeros(len(X_test)),  # Dummy y values (not used for prediction)
-            "unique_id": "target",
-        }
-    )
+    forecasts = nf.predict()
 
-    # Create NeuralForecast instance and predict
-    nf = NeuralForecast(models=[model], freq="D")
-    forecasts = nf.predict(pred_df)
+    model_column = "NBEATSx" if model_type == "nbeatsx" else "NHITS"
 
-    # Extract predictions
-    model_col = model_type.upper()
-    if model_col in forecasts.columns:
-        y_pred = forecasts[model_col].values
-    else:
-        # Fallback: get first prediction column
-        pred_cols = [col for col in forecasts.columns if col not in ["ds", "unique_id"]]
-        if pred_cols:
-            y_pred = forecasts[pred_cols[0]].values
-        else:
+    if model_column not in forecasts.columns:
+        prediction_columns = [
+            column for column in forecasts.columns if column not in ["unique_id", "ds"]
+        ]
+
+        if not prediction_columns:
             raise ValueError(
-                f"Cannot find prediction column in forecasts. Columns: {forecasts.columns.tolist()}"
+                "Cannot find neural prediction column. "
+                f"Available columns: {forecasts.columns.tolist()}"
             )
 
+        model_column = prediction_columns[0]
+
+    from business.models.utils import inverse_normalize
+
+    y_pred = inverse_normalize(
+        forecasts[model_column].to_numpy().reshape(-1, 1),
+        scaler_y,
+    ).ravel()
+
+    y_pred = np.asarray(y_pred).reshape(-1)
+
+    task.get_logger().report_text(f"📊 Neural prediction shape: {y_pred.shape}")
+
 else:
-    # Tree-based models (LightGBM, etc): standard sklearn predict
+    # Tree-based models use the nested model from the artifact bundle.
     task.get_logger().report_text("📊 Using sklearn-style prediction for LightGBM")
+
+    model = model_artifact.get("model")
+
+    if model is None:
+        raise ValueError(
+            "The LightGBM model artifact does not contain the 'model' key."
+        )
+
+    if not hasattr(model, "predict"):
+        raise TypeError(
+            "The nested LightGBM model does not provide predict(). "
+            f"Received {type(model).__name__}."
+        )
+
     y_pred = model.predict(X_test)
+
+    if y_pred.ndim > 1 and y_pred.shape[1] > 1:
+        task.get_logger().report_text(
+            f"📊 Multi-output prediction detected: {y_pred.shape}"
+        )
+        task.get_logger().report_text(
+            f"📊 Extracting target_h from the last output column "
+            f"of {y_pred.shape[1]} targets."
+        )
+        y_pred = y_pred[:, -1]
+    else:
+        y_pred = np.asarray(y_pred).reshape(-1)
+
+    task.get_logger().report_text(f"📊 LightGBM prediction shape: {y_pred.shape}")
 
     # Handle multi-output predictions (extract target_h)
     if len(y_pred.shape) > 1 and y_pred.shape[1] > 1:

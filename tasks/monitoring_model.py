@@ -12,7 +12,8 @@ from business.inference import (
 from business.monitoring import (
     calculate_monitoring_metrics,
     check_retraining_condition,
-)  # THÊM
+    prepare_prediction_histogram_values,
+)
 from config import (
     MONITORING_MAPE_THRESHOLD,
     MONITORING_R2_THRESHOLD,
@@ -363,7 +364,7 @@ task.get_logger().report_text(markdown)
 task.get_logger().report_histogram(
     title="Prediction Distribution",
     series="prediction",
-    values=y_pred.values,
+    values=prepare_prediction_histogram_values(y_pred),
     iteration=0,
 )
 

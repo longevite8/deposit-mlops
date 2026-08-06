@@ -7,6 +7,18 @@ from sklearn.metrics import (
 )
 
 
+def prepare_prediction_histogram_values(predictions):
+    """Return predictions as a one-dimensional NumPy array."""
+    values = np.asarray(predictions)
+
+    if values.ndim != 1:
+        raise ValueError(
+            f"Expected one-dimensional predictions, got shape {values.shape}."
+        )
+
+    return values
+
+
 def calculate_monitoring_metrics(y_true, y_pred):
     """
     Tính toán các chỉ số Performance Monitoring giữa thực tế và dự báo.

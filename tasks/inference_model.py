@@ -8,7 +8,10 @@ from clearml import (
     Task,
 )
 
-from business.inference import run_champion_inference
+from business.inference import (
+    normalize_model_artifact,
+    run_champion_inference,
+)
 from config import (
     FEATURE_COLUMNS,
     FORECAST_HORIZON,
@@ -144,10 +147,21 @@ task.get_logger().report_text(f"✅ Loaded champion model: {champion_model.id}")
 
 model_path = champion_model.get_local_copy()
 
-model_artifact = joblib.load(model_path)
+loaded_artifact = joblib.load(model_path)
+
+normalized_artifact = normalize_model_artifact(
+    artifact=loaded_artifact,
+    default_forecast_horizon=FORECAST_HORIZON,
+)
+
+task.get_logger().report_text(
+    f"✅ Normalized champion artifact: "
+    f"model_type={normalized_artifact['model_type']}, "
+    f"forecast_horizon={normalized_artifact['forecast_horizon']}"
+)
 
 prediction_df, inference_time, latency_ms = run_champion_inference(
-    artifact=model_artifact,
+    artifact=normalized_artifact,
     feature_df=latest_df,
     feature_columns=FEATURE_COLUMNS,
     default_forecast_horizon=FORECAST_HORIZON,
@@ -156,8 +170,8 @@ prediction_df, inference_time, latency_ms = run_champion_inference(
 prediction_values = prediction_df["prediction"].to_numpy()
 
 inference_summary = {
-    "model_type": model_artifact["model_type"],
-    "forecast_horizon": int(model_artifact["forecast_horizon"]),
+    "model_type": str(normalized_artifact["model_type"]),
+    "forecast_horizon": int(normalized_artifact["forecast_horizon"]),
     "forecast_count": len(prediction_values),
     "history_rows": len(latest_df),
     "prediction_mean": float(prediction_values.mean()),

@@ -147,3 +147,21 @@ def test_unknown_model_type_is_rejected():
             pd.DataFrame({"lag_1": [1]}),
             ["lag_1"],
         )
+
+
+def test_legacy_model_is_normalized_before_summary_access():
+    raw_model = lgb.LGBMRegressor(
+        n_estimators=1,
+        verbosity=-1,
+    )
+
+    normalized_artifact = normalize_model_artifact(
+        artifact=raw_model,
+        default_forecast_horizon=3,
+    )
+
+    assert isinstance(normalized_artifact, dict)
+    assert normalized_artifact["model_type"] == "lightgbm"
+    assert normalized_artifact["forecast_horizon"] == 3
+    assert normalized_artifact["model"] is raw_model
+    assert normalized_artifact["legacy_artifact"] is True

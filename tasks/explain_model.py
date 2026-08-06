@@ -10,6 +10,7 @@ import pandas as pd
 import shap
 from clearml import Dataset, InputModel, Task
 
+from business.explainability import get_tree_explainable_model
 from config import (
     FEATURE_COLUMNS,
     N_SHAP_SAMPLES,
@@ -117,7 +118,31 @@ task.get_logger().report_text("Loading trained model...")
 
 input_model = InputModel(model_id=model_id)
 model_path = input_model.get_local_copy()
-model = joblib.load(model_path)
+model_artifact = joblib.load(model_path)
+
+model_type = str(training_summary.get("model_type", "")).strip().lower()
+
+try:
+    model = get_tree_explainable_model(model_artifact, model_type)
+except ValueError as exc:
+    explain_summary = {
+        "model_id": model_id,
+        "model_type": model_type,
+        "status": "skipped",
+        "reason": str(exc),
+    }
+    explain_lineage = {
+        "explain_task_id": task.id,
+        "train_task_id": params["train_task_id"],
+        "feature_task_id": params["feature_task_id"],
+        "model_id": model_id,
+        "feature_dataset_id": feature_dataset_id,
+    }
+    task.upload_artifact("explain_summary", explain_summary)
+    task.upload_artifact("explain_lineage", explain_lineage)
+    task.get_logger().report_text(f"⏭️ Explainability skipped: {exc}")
+    task.close()
+    raise SystemExit(0)
 
 
 # =====================================================

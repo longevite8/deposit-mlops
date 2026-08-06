@@ -10,6 +10,7 @@ from clearml import (
 
 from business.inference import (
     normalize_model_artifact,
+    numeric_summary_items,
     run_champion_inference,
 )
 from config import (
@@ -212,10 +213,18 @@ task.upload_artifact("inference_lineage", inference_lineage)
 # Log & Markdown Dashboard
 # =====================================================
 
-# Log scalars sử dụng dữ liệu từ inference_summary
-for key, val in inference_summary.items():
-    if key != "batch_size":  # Ví dụ: bỏ qua batch_size nếu đã log riêng
-        task.get_logger().report_single_value(key, val)
+# Chỉ gửi các metric dạng số lên ClearML scalar.
+# Metadata dạng chuỗi vẫn được lưu trong inference_summary artifact.
+for key, value in numeric_summary_items(inference_summary):
+    task.get_logger().report_single_value(
+        name=key,
+        value=value,
+    )
+
+task.get_logger().report_text(
+    f"Model type: {inference_summary['model_type']}\n"
+    f"Forecast horizon: {inference_summary['forecast_horizon']}"
+)
 
 # Prediction statistics
 task.get_logger().report_single_value(

@@ -1,9 +1,20 @@
 import time
+from collections.abc import Iterator
+from numbers import Real
 from typing import Any
 
 import lightgbm as lgb
 import numpy as np
 import pandas as pd
+
+
+def numeric_summary_items(
+    summary: dict[str, Any],
+) -> Iterator[tuple[str, float]]:
+    """Return only scalar-safe numeric summary values."""
+    for key, value in summary.items():
+        if isinstance(value, Real) and not isinstance(value, bool):
+            yield key, float(value)
 
 
 def normalize_model_artifact(

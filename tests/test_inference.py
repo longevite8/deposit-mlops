@@ -5,8 +5,38 @@ import pytest
 
 from business.inference import (
     normalize_model_artifact,
+    numeric_summary_items,
     run_champion_inference,
 )
+
+
+def test_numeric_summary_items_excludes_string_metadata():
+    summary = {
+        "model_type": "lightgbm",
+        "forecast_horizon": 3,
+        "forecast_count": 10,
+        "prediction_mean": 100.5,
+        "is_legacy": False,
+    }
+
+    result = dict(numeric_summary_items(summary))
+
+    assert result == {
+        "forecast_horizon": 3.0,
+        "forecast_count": 10.0,
+        "prediction_mean": 100.5,
+    }
+
+
+def test_numeric_summary_items_returns_float_values():
+    summary = {
+        "forecast_horizon": 3,
+        "latency_ms_per_forecast": 1.25,
+    }
+
+    result = dict(numeric_summary_items(summary))
+
+    assert all(isinstance(value, float) for value in result.values())
 
 
 def test_normalize_legacy_raw_lightgbm_model():

@@ -11,6 +11,7 @@ from clearml import (
 from business.inference import run_champion_inference
 from config import (
     FEATURE_COLUMNS,
+    FORECAST_HORIZON,
     PROJECT_TEMPLATE,
     TEMPLATE_INFERENCE_NAME,
 )
@@ -149,6 +150,7 @@ prediction_df, inference_time, latency_ms = run_champion_inference(
     artifact=model_artifact,
     feature_df=latest_df,
     feature_columns=FEATURE_COLUMNS,
+    default_forecast_horizon=FORECAST_HORIZON,
 )
 
 prediction_values = prediction_df["prediction"].to_numpy()

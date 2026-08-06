@@ -1,22 +1,57 @@
 import time
 from typing import Any
 
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 
 
+def normalize_model_artifact(
+    artifact: object,
+    default_forecast_horizon: int = 1,
+) -> dict[str, Any]:
+    """Normalize legacy raw models and current model bundles."""
+
+    if isinstance(artifact, dict):
+        if "model_type" not in artifact:
+            raise ValueError("Model artifact bundle is missing 'model_type'.")
+
+        if "forecast_horizon" not in artifact:
+            raise ValueError("Model artifact bundle is missing 'forecast_horizon'.")
+
+        return artifact
+
+    if isinstance(artifact, lgb.LGBMModel):
+        return {
+            "model_type": "lightgbm",
+            "forecast_horizon": int(default_forecast_horizon),
+            "model": artifact,
+            "legacy_artifact": True,
+        }
+
+    raise TypeError(f"Unsupported model artifact type: {type(artifact).__name__}")
+
+
 def run_champion_inference(
-    artifact: dict[str, Any],
+    artifact: object,
     feature_df: pd.DataFrame,
     feature_columns: list[str],
+    default_forecast_horizon: int = 1,
 ) -> tuple[pd.DataFrame, float, float]:
-    model_type = str(artifact["model_type"]).strip().lower()
-    horizon = int(artifact["forecast_horizon"])
+    normalized_artifact = normalize_model_artifact(
+        artifact=artifact,
+        default_forecast_horizon=default_forecast_horizon,
+    )
+
+    model_type = str(normalized_artifact["model_type"]).strip().lower()
+
+    horizon = int(normalized_artifact["forecast_horizon"])
 
     start_time = time.perf_counter()
 
     if model_type == "lightgbm":
-        model = artifact["model"]
+        model = normalized_artifact["model"]
+
         prediction = np.asarray(model.predict(feature_df[feature_columns]))
 
         if prediction.ndim == 2:
@@ -25,22 +60,25 @@ def run_champion_inference(
         prediction = prediction.reshape(-1)
 
         if len(prediction) != len(feature_df):
-            raise ValueError("LightGBM prediction count does not match feature rows.")
+            raise ValueError(
+                "LightGBM prediction count does not match feature row count."
+            )
 
         output_df = feature_df.copy()
         output_df["prediction"] = prediction
         output_df["forecast_step"] = horizon
 
     elif model_type in {"nhits", "nbeatsx"}:
-        neural_forecast = artifact["neural_forecast"]
+        neural_forecast = normalized_artifact["neural_forecast"]
         forecasts = neural_forecast.predict()
 
         prediction_column = "NHITS" if model_type == "nhits" else "NBEATSx"
 
-        if prediction_column not in forecasts:
+        if prediction_column not in forecasts.columns:
             raise ValueError(f"Missing prediction column {prediction_column!r}.")
 
-        prediction = forecasts[prediction_column].to_numpy().reshape(-1)
+        prediction = forecasts[prediction_column].to_numpy()
+        prediction = prediction.reshape(-1)
 
         if len(prediction) != horizon:
             raise ValueError(f"Expected {horizon} forecasts, got {len(prediction)}.")
@@ -54,7 +92,7 @@ def run_champion_inference(
 
     elapsed = time.perf_counter() - start_time
     forecast_count = len(output_df)
-    latency_ms = elapsed / forecast_count * 1000
+    latency_ms = elapsed / forecast_count * 1000 if forecast_count else 0.0
 
     return output_df, elapsed, latency_ms
 

@@ -44,6 +44,8 @@ cuda-toolkit==13.0.3.0
     # via torch
 distlib==0.4.3
     # via virtualenv
+exceptiongroup==1.3.1
+    # via pytest
 fastparquet==2026.5.0
     # via cashflow-clearml (pyproject.toml)
 filelock==3.32.0
@@ -70,6 +72,8 @@ idna==3.18
     # via
     #   requests
     #   yarl
+iniconfig==2.3.0
+    # via pytest
 jinja2==3.1.6
     # via torch
 joblib==1.5.3
@@ -183,6 +187,7 @@ packaging==26.2
     #   fastparquet
     #   lightning-utilities
     #   optuna
+    #   pytest
     #   pytorch-lightning
     #   ray
     #   shap
@@ -203,6 +208,8 @@ pillow==12.3.0
     # via clearml
 platformdirs==4.11.0
     # via virtualenv
+pluggy==1.6.0
+    # via pytest
 propcache==0.5.2
     # via
     #   aiohttp
@@ -223,10 +230,14 @@ pydantic==2.13.4
     # via ray
 pydantic-core==2.46.4
     # via pydantic
+pygments==2.20.0
+    # via pytest
 pyjwt==2.13.0
     # via clearml
 pyparsing==3.3.2
     # via clearml
+pytest==9.1.1
+    # via cashflow-clearml (pyproject.toml)
 python-dateutil==2.9.0.post0
     # via
     #   clearml
@@ -295,7 +306,9 @@ tensorboardx==2.6.5
 threadpoolctl==3.6.0
     # via scikit-learn
 tomli==2.4.1
-    # via alembic
+    # via
+    #   alembic
+    #   pytest
 torch==2.13.0
     # via
     #   neuralforecast
@@ -317,6 +330,7 @@ typing-extensions==4.16.0
     #   aiohttp
     #   aiosignal
     #   alembic
+    #   exceptiongroup
     #   lightning-utilities
     #   multidict
     #   pydantic

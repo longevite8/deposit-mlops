@@ -21,4 +21,5 @@ dependencies = [
     # Neural Time Series Models
     # =====================================================
     "neuralforecast==3.2.0",
+    "pytest>=9.1.1",
 ]

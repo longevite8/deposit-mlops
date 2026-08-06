@@ -1,25 +1,19 @@
-import joblib
-import pandas as pd
-
-from clearml import (
-    Task,
-    Model,
-    Dataset,
-)
 from pathlib import Path
 
-from config import (
-    PROJECT_TEMPLATE,
-    TEMPLATE_INFERENCE_NAME,
-    FEATURE_COLUMNS,
+import joblib
+import pandas as pd
+from clearml import (
+    Dataset,
+    Model,
+    Task,
 )
 
+from config import (
+    FEATURE_COLUMNS,
+    PROJECT_TEMPLATE,
+    TEMPLATE_INFERENCE_NAME,
+)
 from helpers import wait_for_artifact
-from business.inference import (
-    run_model_inference,
-    calculate_prediction_statistics,
-    build_output_dataframe,
-)  # THÊM
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -75,7 +69,7 @@ try:
     )
 except ValueError as e:
     task.get_logger().report_text(
-        f"❌ Error loading dataset: {str(e)}\n"
+        f"❌ Error loading dataset: {e!s}\n"
         f"   Feature Dataset ID: {feature_dataset_id}\n"
         f"   Attempting to get dataset from feature task artifacts...",
         level="error",
@@ -107,7 +101,7 @@ except ValueError as e:
         )
     except Exception as e2:
         task.get_logger().report_text(
-            f"❌ Failed to load dataset even after retry: {str(e2)}", level="error"
+            f"❌ Failed to load dataset even after retry: {e2!s}", level="error"
         )
         raise
 
@@ -148,32 +142,37 @@ task.get_logger().report_text(f"✅ Loaded champion model: {champion_model.id}")
 
 model_path = champion_model.get_local_copy()
 
-model = joblib.load(
-    model_path,
+model_artifact = joblib.load(model_path)
+
+prediction_df, inference_time, latency_ms = run_champion_inference(
+    artifact=model_artifact,
+    feature_df=latest_df,
+    feature_columns=FEATURE_COLUMNS,
 )
+
+prediction_values = prediction_df["prediction"].to_numpy()
+
+inference_summary = {
+    "model_type": model_artifact["model_type"],
+    "forecast_horizon": int(model_artifact["forecast_horizon"]),
+    "forecast_count": len(prediction_values),
+    "history_rows": len(latest_df),
+    "prediction_mean": float(prediction_values.mean()),
+    "prediction_std": float(prediction_values.std()),
+    "prediction_min": float(prediction_values.min()),
+    "prediction_max": float(prediction_values.max()),
+    "total_inference_time_sec": float(inference_time),
+    "latency_ms_per_forecast": float(latency_ms),
+}
 
 # =====================================================
 # BUSINESS LOGIC: Begin
 # =====================================================
 
-X = latest_df[FEATURE_COLUMNS]
-
-# Gọi logic inference từ business layer
-prediction, inference_time, inference_latency_ms = run_model_inference(model, X)
-
-# Tính toán stats từ business layer
-pred_stats = calculate_prediction_statistics(prediction)
-
-# Xây dựng dataframe kết quả từ business layer
-prediction_df = build_output_dataframe(latest_df, prediction)
 
 # =====================================================
 # BUSINESS LOGIC: End
 # =====================================================
-
-task.get_logger().report_text(
-    f"✅ Inference completed: {len(X)} samples in {inference_time:.4f}s"
-)
 
 
 # Upload artifact
@@ -187,13 +186,6 @@ inference_lineage = {
     "inference_task_id": task.id,
 }
 
-# Tạo inference_summary bằng cách trộn kết hợp stats và performance
-inference_summary = {
-    **pred_stats,
-    "total_inference_time_sec": float(inference_time),
-    "latency_ms_per_sample": float(inference_latency_ms),
-    "batch_size": len(X),
-}
 
 task.upload_artifact(name="prediction_df", artifact_object=prediction_df)
 task.upload_artifact("inference_summary", inference_summary)
@@ -211,22 +203,22 @@ for key, val in inference_summary.items():
 # Prediction statistics
 task.get_logger().report_single_value(
     "prediction_mean",
-    float(prediction.mean()),
+    float(prediction_values.mean()),
 )
 
 task.get_logger().report_single_value(
     "prediction_min",
-    float(prediction.min()),
+    float(prediction_values.min()),
 )
 
 task.get_logger().report_single_value(
     "prediction_max",
-    float(prediction.max()),
+    float(prediction_values.max()),
 )
 
 task.get_logger().report_single_value(
     "prediction_std",
-    float(prediction.std()),
+    float(prediction_values.std()),
 )
 
 # Inference performance metrics
@@ -236,13 +228,13 @@ task.get_logger().report_single_value(
 )
 
 task.get_logger().report_single_value(
-    "latency_ms_per_sample",
-    float(inference_latency_ms),
+    "latency_ms_per_forecast",
+    float(latency_ms),
 )
 
 task.get_logger().report_single_value(
     "inference_batch_size",
-    len(X),
+    len(prediction_values),
 )
 
 # Markdown dashboard
@@ -260,17 +252,16 @@ task.get_logger().report_text(
 ## Predictions
 | Metric | Value |
 |--------|-------|
-| Mean | {prediction.mean():.4f} |
-| Min | {prediction.min():.4f} |
-| Max | {prediction.max():.4f} |
-| Std Dev | {prediction.std():.4f} |
+| Mean | {prediction_values.mean():.4f} |
+| Min | {prediction_values.min():.4f} |
+| Max | {prediction_values.max():.4f} |
+| Std Dev | {prediction_values.std():.4f} |
 
 ## Performance
 | Metric | Value |
 |--------|-------|
 | Total Time (sec) | {inference_time:.4f} |
-| Latency (ms/sample) | {inference_latency_ms:.4f} |
-| Batch Size | {len(X)} |
+| Batch Size | {len(prediction_values)} |
 """
 )
 

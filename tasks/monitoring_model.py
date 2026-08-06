@@ -1,28 +1,26 @@
-from clearml import (
-    Task,
-    Dataset,
-)
 from pathlib import Path
 
 import pandas as pd
-
-
-from config import (
-    PROJECT_TEMPLATE,
-    TEMPLATE_MONITORING_NAME,
-    TARGET_COLUMN,
-    MONITORING_MAPE_THRESHOLD,
-    MONITORING_R2_THRESHOLD,
+from clearml import (
+    Dataset,
+    Task,
 )
 
-from helpers import wait_for_artifact
+from business.inference import (
+    calculate_prediction_statistics,
+)  # Tái sử dụng stats từ bước inference nếu cần
 from business.monitoring import (
     calculate_monitoring_metrics,
     check_retraining_condition,
 )  # THÊM
-from business.inference import (
-    calculate_prediction_statistics,
-)  # Tái sử dụng stats từ bước inference nếu cần
+from config import (
+    MONITORING_MAPE_THRESHOLD,
+    MONITORING_R2_THRESHOLD,
+    PROJECT_TEMPLATE,
+    TARGET_COLUMN,
+    TEMPLATE_MONITORING_NAME,
+)
+from helpers import wait_for_artifact
 
 task = Task.init(
     project_name=PROJECT_TEMPLATE,
@@ -145,7 +143,17 @@ drift_status = drift_summary["status"]
 # =====================================================
 
 y_true = actual_df[TARGET_COLUMN]
-y_pred = prediction_df["prediction"]
+
+if "prediction" not in prediction_df:
+    raise ValueError("Inference artifact lacks the 'prediction' column.")
+
+y_pred = prediction_df["prediction"].to_numpy()
+
+if len(y_true) != len(y_pred):
+    y_true = y_true.tail(len(y_pred)).to_numpy()
+
+if len(y_true) != len(y_pred):
+    raise ValueError(f"Actual/prediction mismatch: {len(y_true)} != {len(y_pred)}")
 
 # =====================================================
 # BUSINESS LOGIC: Begin

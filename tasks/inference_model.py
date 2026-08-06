@@ -8,6 +8,7 @@ from clearml import (
     Task,
 )
 
+from business.inference import run_champion_inference
 from config import (
     FEATURE_COLUMNS,
     PROJECT_TEMPLATE,
